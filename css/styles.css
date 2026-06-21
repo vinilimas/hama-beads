@@ -1,0 +1,399 @@
+/* ==========================================================================
+   Hama Beads Creator — estilos
+   Mobile-first: controles empilhados; em telas largas vira layout de 2 colunas
+   (painel de controle à esquerda, resultado à direita).
+   ========================================================================== */
+
+:root {
+  --bg: #16161a;
+  --panel: #1f1f27;
+  --panel-2: #262631;
+  --line: #34343f;
+  --text: #ececf1;
+  --muted: #9a9aa8;
+  --accent: #ff8a4c;
+  --accent-2: #4caf50;
+  --radius: 10px;
+}
+
+* { box-sizing: border-box; }
+
+/* O atributo `hidden` deve sempre esconder, mesmo quando uma classe define
+   display (ex.: .grid-canvas{display:block} ou .placeholder{display:flex}). */
+[hidden] { display: none !important; }
+
+html, body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  font-size: 15px;
+  -webkit-text-size-adjust: 100%;
+}
+
+h1, h2 { margin: 0; }
+
+.topbar {
+  padding: 14px 16px;
+  background: linear-gradient(180deg, #20202a, #16161a);
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+.topbar h1 { font-size: 1.15rem; }
+.topbar .sub { margin: 2px 0 0; color: var(--muted); font-size: 0.82rem; }
+
+/* ---------- Layout ---------- */
+.layout {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+@media (min-width: 920px) {
+  .layout {
+    flex-direction: row;
+    align-items: flex-start;
+  }
+  .controls {
+    flex: 0 0 360px;
+    position: sticky;
+    top: 70px;
+    max-height: calc(100vh - 84px);
+    overflow-y: auto;
+  }
+  .output { flex: 1 1 auto; min-width: 0; }
+}
+
+/* ---------- Painéis de controle ---------- */
+.controls { display: flex; flex-direction: column; gap: 12px; }
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+.panel h2 {
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+  margin-bottom: 10px;
+}
+
+.field { margin-bottom: 12px; }
+.field:last-child { margin-bottom: 0; }
+.field label { display: block; font-size: 0.82rem; color: var(--muted); margin-bottom: 5px; }
+.field.check label { color: var(--text); }
+.field output { color: var(--text); font-weight: 600; }
+
+input[type="range"] { width: 100%; accent-color: var(--accent); }
+select {
+  width: 100%;
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px;
+  font-size: 0.9rem;
+}
+
+.row { display: flex; align-items: center; gap: 8px; }
+.row.wrap { flex-wrap: wrap; }
+.row .grow { flex: 1 1 auto; min-width: 0; }
+
+button {
+  cursor: pointer;
+  border: 1px solid var(--line);
+  background: var(--accent);
+  color: #1a1a1a;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 0.9rem;
+}
+button.ghost { background: var(--panel-2); color: var(--text); }
+button:hover { filter: brightness(1.08); }
+button:active { transform: translateY(1px); }
+
+.file-btn {
+  display: block;
+  text-align: center;
+  background: var(--accent);
+  color: #1a1a1a;
+  font-weight: 700;
+  border-radius: 8px;
+  padding: 11px;
+  cursor: pointer;
+  margin-bottom: 8px;
+}
+.file-btn:hover { filter: brightness(1.08); }
+
+.hint { font-size: 0.78rem; color: var(--muted); margin: 0 0 8px; }
+.muted { color: var(--muted); font-size: 0.82rem; }
+
+/* ---------- Recorte ---------- */
+.crop-stage {
+  position: relative;
+  width: 100%;
+  height: 260px;
+  background: #0e0e12 url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><rect width="10" height="10" fill="%23222"/><rect x="10" y="10" width="10" height="10" fill="%23222"/></svg>');
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  touch-action: none;
+  margin-bottom: 8px;
+}
+.crop-img { user-select: none; pointer-events: none; -webkit-user-drag: none; }
+.crop-box {
+  position: absolute;
+  border: 2px solid var(--accent);
+  /* Escurece o que está fora da seleção. O spread é limitado (não 9999px) para
+     não criar uma camada gigante que trava o compositor — o palco tem
+     overflow:hidden, então o resultado visual é o mesmo. */
+  box-shadow: 0 0 0 1000px rgba(0, 0, 0, 0.55);
+  cursor: move;
+  touch-action: none;
+}
+.crop-handle {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  background: var(--accent);
+  border: 2px solid #1a1a1a;
+  border-radius: 50%;
+  touch-action: none;
+}
+.crop-handle-nw { left: -9px; top: -9px; cursor: nwse-resize; }
+.crop-handle-ne { right: -9px; top: -9px; cursor: nesw-resize; }
+.crop-handle-sw { left: -9px; bottom: -9px; cursor: nesw-resize; }
+.crop-handle-se { right: -9px; bottom: -9px; cursor: nwse-resize; }
+
+/* ---------- Substituição de cor ---------- */
+.replace-list { list-style: none; margin: 8px 0 0; padding: 0; }
+.replace-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--panel-2);
+  border-radius: 6px;
+  padding: 5px 8px;
+  margin-bottom: 5px;
+  font-size: 0.85rem;
+}
+.replace-list button { padding: 2px 8px; font-size: 0.8rem; }
+
+/* ---------- Editor de paleta ---------- */
+.palette-list { display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow-y: auto; }
+.pal-row {
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  background: var(--panel-2);
+  border-radius: 6px;
+  padding: 5px 8px;
+}
+.pal-row input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent-2); }
+.pal-row .pal-code { font-family: monospace; font-weight: 700; font-size: 0.85rem; min-width: 26px; }
+.pal-row .pal-name { color: var(--muted); font-size: 0.78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pal-row input[type="color"] {
+  width: 34px; height: 28px; padding: 0; border: 1px solid var(--line);
+  border-radius: 5px; background: none; cursor: pointer;
+}
+.pal-row.disabled { opacity: 0.45; }
+
+/* ---------- Saída / resultado ---------- */
+.output {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel-2);
+}
+.tab {
+  background: transparent;
+  color: var(--muted);
+  border: none;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-weight: 600;
+}
+.tab.active { background: var(--accent); color: #1a1a1a; }
+.zoom-controls { margin-left: auto; display: flex; gap: 4px; }
+.zoom-controls button { background: var(--panel); color: var(--text); border: 1px solid var(--line); padding: 6px 10px; }
+
+/* ---------- Barra de montagem ---------- */
+.assembly-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 10px;
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--line);
+}
+.assembly-bar button {
+  padding: 6px 9px;
+  font-size: 0.85rem;
+}
+.assembly-bar .amode {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.assembly-bar .amode input { width: 16px; height: 16px; accent-color: var(--accent); }
+.asm-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+/* Toggle segmentado: Desenho todo | Linha por linha */
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg-btn {
+  background: var(--panel);
+  color: var(--muted);
+  border: none;
+  border-radius: 0;
+  padding: 6px 10px;
+}
+.seg-btn.active { background: var(--accent); color: #1a1a1a; }
+.asm-rownav { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.asm-rownav span { font-variant-numeric: tabular-nums; min-width: 64px; text-align: center; }
+.asm-focus { display: flex; align-items: center; gap: 6px; white-space: nowrap; font-size: 0.85rem; color: var(--muted); }
+.asm-focus select { width: auto; min-width: 120px; padding: 6px; }
+.asm-progress { display: flex; align-items: center; gap: 8px; }
+.asm-progress .bar {
+  width: 120px; height: 8px; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 999px; overflow: hidden;
+}
+.asm-progress .bar span {
+  display: block; height: 100%; width: 0%;
+  background: var(--accent-2); transition: width 0.15s ease;
+}
+.asm-screen { margin-left: auto; display: flex; gap: 4px; }
+.assembly-bar button.on { background: var(--accent); color: #1a1a1a; border-color: var(--accent); }
+.viewport.locked { cursor: default; }
+.viewport.locked .size-handle { display: none !important; }
+
+.viewport {
+  position: relative;
+  height: 62vh;
+  min-height: 320px;
+  overflow: hidden;
+  background:
+    repeating-conic-gradient(#1b1b22 0% 25%, #20202a 0% 50%) 50% / 24px 24px;
+  touch-action: none;
+}
+.canvas-pan {
+  position: absolute;
+  left: 0; top: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+.grid-canvas {
+  display: block;
+  image-rendering: pixelated;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.06);
+}
+.placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+/* Badge com o tamanho atual da grade e a contagem de miçangas. */
+.grid-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 6;
+  background: rgba(0, 0, 0, 0.66);
+  border: 1px solid var(--line);
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: 8px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.grid-badge b { color: var(--accent); }
+.grid-badge .beads { color: var(--accent-2); }
+.grid-badge .cap { color: var(--muted); font-weight: 400; }
+
+/* Alça para redimensionar a grade arrastando no preview (canto inferior-direito). */
+.size-handle {
+  position: absolute;
+  z-index: 7;
+  width: 28px;
+  height: 28px;
+  margin: -14px;
+  background: var(--accent);
+  border: 2px solid #1a1a1a;
+  border-radius: 7px;
+  cursor: nwse-resize;
+  touch-action: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+.size-handle::after {
+  content: '⤡';
+  color: #1a1a1a;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+}
+.size-handle:active { filter: brightness(1.1); }
+
+/* ---------- Legenda ---------- */
+.legend-wrap { padding: 12px 14px; border-top: 1px solid var(--line); }
+.legend-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+.legend-head h2 { font-size: 0.9rem; }
+.legend {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 6px;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--panel-2);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+.legend-item.focused { outline: 2px solid var(--accent); }
+.legend-item .sw { width: 20px; height: 20px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.2); flex: 0 0 auto; }
+
+/* Tela cheia do molde (modo montagem no celular). */
+.output:fullscreen { background: var(--bg); }
+.output:fullscreen .viewport { height: 82vh; }
+.legend-item .lc { font-family: monospace; font-weight: 700; }
+.legend-item .ln { margin-left: auto; font-weight: 700; }
+
+.busy { opacity: 0.6; pointer-events: none; }
