@@ -568,6 +568,51 @@
     return { step: step, gridW: gridW, gridH: gridH };
   }
 
+  /**
+   * Contagem de miçangas por LINHA. Para cada linha que tem ≥1 miçanga, retorna
+   * a contagem por cor (ordenada por frequência desc) e o total. Útil para montar
+   * fileira por fileira sabendo exatamente quantas de cada cor pegar.
+   *
+   * @returns {Array<{row, total, items:[{color, count}]}>}
+   */
+  function rowStats(grid) {
+    const { w, h, colors, assign } = grid;
+    const rows = [];
+    for (let y = 0; y < h; y++) {
+      const counts = new Array(colors.length).fill(0);
+      let total = 0;
+      for (let x = 0; x < w; x++) {
+        const a = assign[y * w + x];
+        if (a >= 0) { counts[a]++; total++; }
+      }
+      if (total === 0) continue;
+      const items = [];
+      for (let k = 0; k < colors.length; k++) {
+        if (counts[k] > 0) items.push({ color: colors[k], count: counts[k] });
+      }
+      items.sort((p, q) => q.count - p.count);
+      rows.push({ row: y, total, items });
+    }
+    return rows;
+  }
+
+  /** Contagem por cor de uma ÚNICA linha (modo montagem). */
+  function rowColorCounts(grid, y) {
+    const { w, colors, assign } = grid;
+    const counts = new Array(colors.length).fill(0);
+    let total = 0;
+    for (let x = 0; x < w; x++) {
+      const a = assign[y * w + x];
+      if (a >= 0) { counts[a]++; total++; }
+    }
+    const items = [];
+    for (let k = 0; k < colors.length; k++) {
+      if (counts[k] > 0) items.push({ color: colors[k], count: counts[k] });
+    }
+    items.sort((p, q) => q.count - p.count);
+    return { row: y, total, items };
+  }
+
   global.HBPipeline = {
     sampleGrid,
     embedGrid,
@@ -578,5 +623,7 @@
     colorStats,
     nearestColorIndex,
     detectPixelArt,
+    rowStats,
+    rowColorCounts,
   };
 })(window);

@@ -397,3 +397,184 @@ button:active { transform: translateY(1px); }
 .legend-item .ln { margin-left: auto; font-weight: 700; }
 
 .busy { opacity: 0.6; pointer-events: none; }
+
+/* ==========================================================================
+   Grupos de controle (abas no mobile) + componentes novos
+   ========================================================================== */
+
+/* No desktop, o wrapper de grupo é transparente: os painéis empilham na
+   .controls exatamente como antes (display:contents remove o div do layout). */
+.ctl-group { display: contents; }
+
+/* ---------- Ajustes avançados (colapsável) ---------- */
+.advanced {
+  margin-top: 4px;
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+}
+.advanced > summary {
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--accent);
+  list-style: none;
+  padding: 4px 0;
+  user-select: none;
+}
+.advanced > summary::-webkit-details-marker { display: none; }
+.advanced > summary::before { content: '▸ '; }
+.advanced[open] > summary::before { content: '▾ '; }
+.advanced-body { padding-top: 8px; }
+.adv-title {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin: 14px 0 8px;
+}
+
+/* ---------- Demonstrativo por linha (tab Cores) ---------- */
+.row-breakdown { display: flex; flex-direction: column; gap: 4px; max-height: 320px; overflow-y: auto; }
+.rb-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--panel-2);
+  border-radius: 6px;
+  padding: 5px 8px;
+  flex-wrap: wrap;
+}
+.rb-row .rb-label { font-family: monospace; font-weight: 700; font-size: 0.78rem; min-width: 34px; color: var(--accent); }
+.rb-row .rb-total { font-size: 0.74rem; color: var(--muted); margin-left: auto; }
+.rb-chip { display: inline-flex; align-items: center; gap: 3px; font-size: 0.74rem; }
+.rb-chip .sw { width: 11px; height: 11px; border-radius: 3px; border: 1px solid rgba(255,255,255,0.2); }
+.rb-chip .lc { font-family: monospace; font-weight: 700; }
+
+/* ---------- Mini-resumo da linha atual (modo montagem) ---------- */
+.row-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 8px 12px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  font-size: 0.85rem;
+}
+.row-summary .rs-head { font-weight: 700; color: var(--accent); }
+.row-summary .rb-chip { font-size: 0.85rem; }
+.row-summary .rb-chip .sw { width: 14px; height: 14px; }
+
+/* ---------- Navegação mobile (rodapé) — escondida no desktop ---------- */
+.mobile-tabs { display: none; }
+
+/* ==========================================================================
+   MOBILE (≤919px) — app-shell: preview fixo no topo, abas rolam no meio,
+   navegação fixa no rodapé. O desktop (≥920px) não é afetado.
+   ========================================================================== */
+@media (max-width: 919px) {
+  /* Trava o scroll da página; cada região rola internamente. */
+  html, body { height: 100%; overflow: hidden; }
+  body { display: flex; flex-direction: column; }
+  .topbar { flex: 0 0 auto; padding: 10px 14px; position: static; }
+  .topbar h1 { font-size: 1.05rem; }
+  .topbar .sub { display: none; }
+
+  .layout {
+    flex: 1 1 auto;
+    min-height: 0;
+    flex-direction: column;
+    gap: 0;
+    padding: 0;
+  }
+
+  /* ----- Preview fixo no topo ----- */
+  .output {
+    order: 0;
+    flex: 0 0 auto;
+    height: 46vh;
+    min-height: 0;
+    border: none;
+    border-bottom: 1px solid var(--line);
+    border-radius: 0;
+  }
+  .output .viewport { flex: 1 1 auto; height: auto; min-height: 0; }
+  .output .legend-wrap {
+    flex: 0 0 auto;
+    max-height: 30%;
+    overflow-y: auto;
+  }
+
+  /* ----- Conteúdo da aba ativa (rola no meio) ----- */
+  .controls {
+    order: 1;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 12px;
+    gap: 12px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .ctl-group { display: none; }
+  .ctl-group.active { display: flex; flex-direction: column; gap: 12px; }
+
+  /* ----- Navegação fixa no rodapé ----- */
+  .mobile-tabs {
+    order: 2;
+    flex: 0 0 auto;
+    display: flex;
+    background: var(--panel-2);
+    border-top: 1px solid var(--line);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  .mtab {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    background: transparent;
+    color: var(--muted);
+    border: none;
+    border-top: 2px solid transparent;
+    border-radius: 0;
+    padding: 8px 2px;
+    font-size: 0.68rem;
+    font-weight: 600;
+  }
+  .mtab .mt-ico { font-size: 1.2rem; line-height: 1; }
+  .mtab.active { color: var(--accent); border-top-color: var(--accent); background: var(--panel); }
+  .mtab:hover { filter: none; }
+  .mtab:active { transform: none; }
+
+  /* ----- Aba "Montar": esconde controles, preview cresce ----- */
+  .layout[data-mtab="montar"] .output { flex: 1 1 auto; height: auto; }
+  .layout[data-mtab="montar"] .controls { display: none; }
+  /* Na montagem, o grid é o que importa: esconde a legenda longa
+     (a contagem por linha já aparece no mini-resumo). */
+  .layout[data-mtab="montar"] .legend-wrap { display: none; }
+
+  /* A barra de montagem e o mini-resumo só aparecem na aba "Montar"
+     (nas outras o preview fica limpo, só para conferência). */
+  .assembly-bar { display: none; }
+  .layout[data-mtab="montar"] .assembly-bar { display: flex; }
+  .row-summary { display: none; }
+  .layout[data-mtab="montar"] .row-summary { display: flex; }
+
+  /* Barra de montagem compacta no celular. */
+  .assembly-bar { gap: 6px 8px; padding: 6px 8px; }
+  .assembly-bar button { padding: 5px 7px; font-size: 0.8rem; }
+  .asm-progress .bar { width: 84px; }
+  .asm-focus select { min-width: 96px; }
+
+  /* Botões de zoom dispensáveis no celular (pinça funciona). */
+  .zoom-controls { display: none; }
+  .tabs { padding: 6px; }
+
+  /* Recorte um pouco menor para caber melhor. */
+  .crop-stage { height: 220px; }
+
+  /* Painel de controle ocupa a largura toda, sem sticky. */
+  .controls { position: static; max-height: none; }
+}

@@ -341,6 +341,8 @@
     });
 
     renderLegend();
+    renderRowBreakdown();
+    renderRowSummary();
     updateBadge();
     updateProgressUI();
     // Ajusta o enquadramento na primeira renderização desta imagem.
@@ -349,6 +351,56 @@
       state._fitted = true;
     }
     updateSizer();
+  }
+
+  /**
+   * Demonstrativo por LINHA (tab Cores): para cada fileira com miçanga, lista
+   * quantas de cada cor e o total. Visão geral de toda a peça.
+   */
+  function renderRowBreakdown() {
+    var panel = $('rowBreakdownPanel');
+    var box = $('rowBreakdown');
+    if (!box) return;
+    if (!state.grid) { if (panel) panel.hidden = true; box.innerHTML = ''; return; }
+    var rows = HBPipeline.rowStats(state.grid);
+    if (!rows.length) { if (panel) panel.hidden = true; box.innerHTML = ''; return; }
+    if (panel) panel.hidden = false;
+    var html = '';
+    rows.forEach(function (r) {
+      html += '<div class="rb-row"><span class="rb-label">L' + r.row + '</span>';
+      r.items.forEach(function (it) {
+        html += '<span class="rb-chip"><span class="sw" style="background:' + it.color.hex +
+          '"></span><span class="lc">' + it.color.code + '</span>×' + it.count + '</span>';
+      });
+      html += '<span class="rb-total">' + r.total + '</span></div>';
+    });
+    box.innerHTML = html;
+  }
+
+  /**
+   * Mini-resumo da linha ATUAL (modo montagem "linha por linha"): mostra acima
+   * do preview quantas miçangas de cada cor a fileira em foco precisa.
+   */
+  function renderRowSummary() {
+    var el = $('rowSummary');
+    if (!el) return;
+    if (!state.grid || !state.asm.on || state.asm.viewMode !== 'rows') {
+      el.hidden = true;
+      return;
+    }
+    var rc = HBPipeline.rowColorCounts(state.grid, state.asm.currentRow);
+    var html = '<span class="rs-head">Linha ' + state.asm.currentRow +
+      (rc.total ? ' — ' + rc.total + ' miçangas' : '') + '</span>';
+    if (!rc.total) {
+      html += '<span class="muted">linha vazia</span>';
+    } else {
+      rc.items.forEach(function (it) {
+        html += '<span class="rb-chip"><span class="sw" style="background:' + it.color.hex +
+          '"></span><span class="lc">' + it.color.code + '</span> ×' + it.count + '</span>';
+      });
+    }
+    el.innerHTML = html;
+    el.hidden = false;
   }
 
   /** Calcula as opções de overlay de montagem para o render atual. */
@@ -1108,6 +1160,34 @@
   }
 
   // ====================================================================== //
+  //  NAVEGAÇÃO MOBILE (abas no rodapé)                                     //
+  // ====================================================================== //
+  /** Liga as 4 abas do rodapé (só fazem efeito visual no mobile via CSS). */
+  function initMobileTabs() {
+    Array.prototype.forEach.call(document.querySelectorAll('.mtab'), function (btn) {
+      btn.addEventListener('click', function () { setMobileTab(btn.dataset.mtab); });
+    });
+  }
+
+  function setMobileTab(g) {
+    $('layout').setAttribute('data-mtab', g);
+    Array.prototype.forEach.call(document.querySelectorAll('.mtab'), function (b) {
+      b.classList.toggle('active', b.dataset.mtab === g);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('.ctl-group'), function (el) {
+      el.classList.toggle('active', el.dataset.group === g);
+    });
+    // Ao entrar em "Montar", liga o modo montagem por conveniência.
+    if (g === 'montar' && !state.asm.on) setAssemblyOn(true);
+    // A altura disponível para o preview muda — reencaixa o molde.
+    if (state.grid && panzoom) {
+      setTimeout(function () {
+        panzoom.fit(activeTab === 'color' ? $('colorCanvas') : $('codeCanvas'));
+      }, 30);
+    }
+  }
+
+  // ====================================================================== //
   //  EXPORTAR                                                              //
   // ====================================================================== //
   function exportColorPNG() {
@@ -1166,6 +1246,7 @@
     refreshColorSelects();
     renderReplacements();
     bindControls();
+    initMobileTabs();
 
     // Reflete valores iniciais nos outputs.
     $('maxColorsOut').textContent = 'sem limite';
