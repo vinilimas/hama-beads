@@ -88,6 +88,15 @@ Depois acesse `http://localhost:8000`.
 No painel de resultado há **duas abas** (preview colorido e molde por código),
 com **zoom e pan** (roda do mouse, pinça no celular, ou os botões).
 
+### 📲 Instalar como app (PWA)
+
+O app é um **PWA**: instalável e offline. No **Safari (iPhone/iPad)**, abra o site,
+toque em **Compartilhar → Adicionar à Tela de Início** — ele ganha ícone próprio e
+abre em tela cheia, sem a barra do navegador. No **Chrome/Android** (e desktop),
+use **Instalar app**. Depois de aberto uma vez, funciona **offline** (um *service
+worker* guarda todos os arquivos em cache). Requer HTTPS — funciona no site
+publicado (ex.: Cloudflare Pages), não no `file://`.
+
 ### 🧩 Modo montagem (para montar na placa física)
 
 Liga a barra **Modo montagem** acima do preview e vira um *companheiro de

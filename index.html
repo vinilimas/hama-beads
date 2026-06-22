@@ -5,8 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
   <meta name="theme-color" content="#16161a" />
   <title>Hama Beads Creator — Conversor de imagem em molde</title>
+
+  <!-- PWA: instalável e offline (Adicionar à Tela de Início no Safari). -->
+  <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
-  <link rel="apple-touch-icon" href="favicon.svg" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Hama Beads" />
+
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
@@ -323,5 +331,15 @@
   <script src="js/crop.js"></script>
   <script src="js/export.js"></script>
   <script src="js/app.js"></script>
+
+  <!-- Registra o service worker (PWA/offline). Só em http(s); ignorado em file://. -->
+  <script>
+    if ('serviceWorker' in navigator &&
+        (location.protocol === 'https:' || location.hostname === 'localhost')) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('sw.js').catch(function () {});
+      });
+    }
+  </script>
 </body>
 </html>
