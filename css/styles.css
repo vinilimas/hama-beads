@@ -523,6 +523,11 @@ button:active { transform: translateY(1px); }
     min-height: 0;
     flex-direction: column;
     gap: 0;
+    /* Ocupa a largura toda: o `margin:0 auto`/`max-width` da regra base
+       encolhia o layout (item flex) e deixava ~34px de borda dos dois lados. */
+    margin: 0;
+    max-width: none;
+    width: 100%;
     padding: 0;
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
@@ -690,7 +695,21 @@ button:active { transform: translateY(1px); }
   .zoom-controls { display: none; }
   .tabs { padding: 6px; }
 
-  /* Recorte um pouco menor para caber melhor. */
+  /* ----- Aba "Imagem": sem preview (ainda não há imagem). Os botões de
+     upload ocupam a tela, centralizados verticalmente. ----- */
+  .layout[data-mtab="imagem"] .output { display: none; }
+  .layout[data-mtab="imagem"] .controls { justify-content: center; }
+
+  /* ----- Aba "Recorte": só o enquadramento (sem o preview de cima). O palco
+     de recorte cresce para preencher a área disponível. ----- */
+  .layout[data-mtab="enquadrar"] .output { display: none; }
+  .layout[data-mtab="enquadrar"] .controls { justify-content: flex-start; }
+  .layout[data-mtab="enquadrar"] .crop-stage {
+    height: 64dvh;
+    margin-bottom: 10px;
+  }
+
+  /* Recorte (fallback fora das abas dedicadas): um pouco menor para caber. */
   .crop-stage { height: 220px; }
 
   /* Painel de controle ocupa a largura toda, sem sticky. */

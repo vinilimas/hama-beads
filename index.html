@@ -52,7 +52,7 @@
         <!-- Recorte -->
         <section class="panel" id="cropPanel" hidden>
           <h2>2 · Enquadramento</h2>
-          <p class="hint">Arraste para mover e use os cantos para redimensionar livremente (qualquer proporção).</p>
+          <p class="hint">Arraste para mover; use os cantos para redimensionar.</p>
           <div class="crop-stage" id="cropStage"></div>
           <div class="row">
             <button class="ghost" id="cropResetBtn">Centralizar</button>
@@ -72,7 +72,7 @@
           <div class="field">
             <label>Tamanho da imagem (lado maior): <output id="gridOut">52</output> pinos</label>
             <input type="range" id="gridSize" min="8" max="52" step="1" value="52" />
-            <p class="hint" style="margin-top:6px;">A bandeja é sempre <b>52×52</b> e o círculo <b>28×28</b>. O <b>enquadramento é livre</b> (recorte de qualquer proporção); a imagem entra na bandeja centralizada, na proporção do recorte. Este controle define o <b>lado maior</b> — arraste a alça laranja no preview ou use o slider.</p>
+            <p class="hint" style="margin-top:6px;">Bandeja <b>52×52</b>. Define o <b>lado maior</b> da imagem — ou arraste a alça laranja no preview.</p>
           </div>
           <div class="field check">
             <label><input type="checkbox" id="trayCircle" checked /> Mostrar círculo da bandeja</label>
@@ -80,7 +80,7 @@
           <div class="field" id="trayDiameterField">
             <label>Diâmetro do círculo (pinos): <output id="trayOut">28</output></label>
             <input type="range" id="trayDiameter" min="4" max="52" step="1" value="28" />
-            <p class="hint" style="margin-top:6px;">Guia visual = o círculo gravado no centro da sua bandeja física. Só referência, não vira miçanga.</p>
+            <p class="hint" style="margin-top:6px;">Só guia visual do círculo da bandeja — não vira miçanga.</p>
           </div>
           <div class="field">
             <label>Brilho: <output id="brightOut">0</output></label>
@@ -111,9 +111,8 @@
               <option value="color">Pintar o fundo de uma cor</option>
             </select>
             <p class="hint" style="margin-top:6px;">
-              "Remover fundo" identifica a área de fundo conectada às bordas (flood
-              fill) e a deixa <b>vazia</b> — sem miçanga. Áreas brancas <i>dentro</i>
-              do desenho são mantidas.
+              "Remover fundo" esvazia a área ligada às bordas; o branco
+              <i>dentro</i> do desenho é mantido.
             </p>
           </div>
           <div class="field" id="bgColorField" hidden>
@@ -123,7 +122,7 @@
           <div class="field">
             <label>Tolerância do fundo: <output id="bgTolOut">14</output></label>
             <input type="range" id="bgTol" min="2" max="40" step="1" value="14" />
-            <p class="hint" style="margin-top:6px;">Maior = remove tons de fundo mais variados (cuidado para não comer a borda do desenho).</p>
+            <p class="hint" style="margin-top:6px;">Maior = remove mais tons de fundo (cuidado com a borda).</p>
           </div>
         </section>
       </div>
@@ -139,11 +138,11 @@
               <option value="dominant">Arte chapada (cores limpas)</option>
               <option value="average">Foto (gradientes)</option>
             </select>
-            <p class="hint" style="margin-top:6px;">"Arte chapada" usa a <b>cor dominante</b> de cada célula — ideal para personagens/logos, gera bem menos cores. "Foto" usa a média, melhor para fotos com degradês.</p>
+            <p class="hint" style="margin-top:6px;">"Arte chapada": cor dominante (personagens/logos, menos cores). "Foto": média (degradês).</p>
           </div>
           <div class="field check">
             <label><input type="checkbox" id="simplify" checked /> Simplificar cores (remover ruído)</label>
-            <p class="hint" style="margin-top:4px;">Mescla cores raras de borda, mas mantém detalhes distintos (ex.: o amarelo).</p>
+            <p class="hint" style="margin-top:4px;">Mescla cores raras de borda, preservando detalhes.</p>
           </div>
 
           <!-- Avançado (colapsável) -->

@@ -1207,12 +1207,15 @@
     // Fecha o painel de configurações ao trocar de aba.
     var s = $('asmSettings');
     if (s) s.classList.remove('open');
-    // A altura disponível para o preview muda — reencaixa o molde.
-    if (state.grid && panzoom) {
-      setTimeout(function () {
+    // A altura disponível muda ao trocar de aba: dispara um resize para o
+    // recorte recalcular o palco (que cresce na aba "Recorte") e reencaixa o
+    // molde no preview.
+    setTimeout(function () {
+      window.dispatchEvent(new Event('resize'));
+      if (state.grid && panzoom) {
         panzoom.fit(activeTab === 'color' ? $('colorCanvas') : $('codeCanvas'));
-      }, 30);
-    }
+      }
+    }, 30);
   }
 
   // ====================================================================== //
