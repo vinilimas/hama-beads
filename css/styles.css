@@ -501,10 +501,20 @@ button:active { transform: translateY(1px); }
    navegação fixa no rodapé. O desktop (≥920px) não é afetado.
    ========================================================================== */
 @media (max-width: 919px) {
-  /* Trava o scroll da página; cada região rola internamente. */
-  html, body { height: 100%; overflow: hidden; }
+  /* Base um pouco maior no celular (15px ficava pequeno no 14 Plus). */
+  html, body { font-size: 16px; }
+
+  /* Trava o scroll da página; cada região rola internamente. A casca usa a
+     altura de viewport DINÂMICA (dvh) para não saltar quando a barra do Safari
+     recolhe/aparece; `100%` fica de fallback para navegadores sem dvh. */
+  html, body { height: 100%; height: 100dvh; overflow: hidden; }
   body { display: flex; flex-direction: column; }
-  .topbar { flex: 0 0 auto; padding: 10px 14px; position: static; }
+  /* Respeita a Dynamic Island / notch no PWA (viewport-fit=cover). */
+  .topbar {
+    flex: 0 0 auto;
+    position: static;
+    padding: calc(10px + env(safe-area-inset-top)) 14px 10px;
+  }
   .topbar h1 { font-size: 1.05rem; }
   .topbar .sub { display: none; }
 
@@ -514,13 +524,21 @@ button:active { transform: translateY(1px); }
     flex-direction: column;
     gap: 0;
     padding: 0;
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
   }
+
+  /* Controles de formulário ≥16px no celular: abaixo disso o iOS Safari dá
+     zoom automático ao focar o campo (a tela "dava resize" ao tocar nos
+     selects de Cores/Fundo/Cor focada). */
+  input, select, textarea,
+  button, .file-btn { font-size: 16px; }
 
   /* ----- Preview fixo no topo ----- */
   .output {
     order: 0;
     flex: 0 0 auto;
-    height: 46vh;
+    height: 46dvh;
     min-height: 0;
     border: none;
     border-bottom: 1px solid var(--line);
@@ -579,9 +597,10 @@ button:active { transform: translateY(1px); }
   .mtab:hover { filter: none; }
   .mtab:active { transform: none; }
 
-  /* 6 abas no rodapé: fonte menor para caber. */
-  .mtab { font-size: 0.6rem; padding: 7px 1px; }
-  .mtab .mt-ico { font-size: 1.05rem; }
+  /* 6 abas no rodapé: legíveis e com alvo de toque confortável (≈48px de
+     altura). 430px/6 ≈ 71px por aba no 14 Plus; 393px/6 ≈ 65px no 14 Pro. */
+  .mtab { font-size: 0.7rem; padding: 8px 1px; min-height: 48px; }
+  .mtab .mt-ico { font-size: 1.25rem; }
 
   /* A barra de montagem e o mini-resumo só aparecem na aba "Montar"
      (nas outras o preview fica limpo, só para conferência). */
@@ -597,10 +616,14 @@ button:active { transform: translateY(1px); }
   #fsBtn { display: none; }                       /* fullscreen não pega no mobile */
   #exportPanel { display: none; }                 /* export só no desktop */
 
-  /* Barra de montagem compacta: linha principal = navegação + ✓ + ⚙️. */
+  /* Barra de montagem compacta: linha principal = navegação + ✓ + ⚙️.
+     Botões com altura mínima para o dedo (≥40px). */
   .assembly-bar { gap: 6px 8px; padding: 8px; }
-  .assembly-bar button { padding: 6px 9px; font-size: 0.82rem; }
+  .assembly-bar button { padding: 8px 10px; font-size: 0.9rem; min-height: 40px; }
   .asm-controls { width: 100%; gap: 6px 8px; }
+
+  /* Hints/legendas um pouco maiores no celular. */
+  .hint { font-size: 0.82rem; }
   .asm-rownav { flex: 1 1 auto; }
   .asm-rownav span { flex: 1 1 auto; text-align: center; }
 
