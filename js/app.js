@@ -388,15 +388,21 @@
       el.hidden = true;
       return;
     }
-    var rc = HBPipeline.rowColorCounts(state.grid, state.asm.currentRow);
+    // Sequência de colocação (run-length), na ordem da esquerda → direita.
+    var rr = HBPipeline.rowRuns(state.grid, state.asm.currentRow);
     var html = '<span class="rs-head">Linha ' + state.asm.currentRow +
-      (rc.total ? ' — ' + rc.total + ' miçangas' : '') + '</span>';
-    if (!rc.total) {
+      (rr.total ? ' — ' + rr.total + ' miçangas' : '') + '</span>';
+    if (!rr.total) {
       html += '<span class="muted">linha vazia</span>';
     } else {
-      rc.items.forEach(function (it) {
-        html += '<span class="rb-chip"><span class="sw" style="background:' + it.color.hex +
-          '"></span><span class="lc">' + it.color.code + '</span> ×' + it.count + '</span>';
+      rr.segs.forEach(function (s) {
+        if (s.idx < 0) {
+          // Vazio no meio da linha (pular furos) — mantém a posição correta.
+          html += '<span class="rb-chip rb-gap"><span class="sw"></span>vazio ×' + s.count + '</span>';
+        } else {
+          html += '<span class="rb-chip"><span class="sw" style="background:' + s.color.hex +
+            '"></span><span class="lc">' + s.color.code + '</span> ×' + s.count + '</span>';
+        }
       });
     }
     el.innerHTML = html;

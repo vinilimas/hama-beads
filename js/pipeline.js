@@ -596,6 +596,35 @@
     return rows;
   }
 
+  /**
+   * Sequência de colocação de uma linha (run-length): varre da esquerda para a
+   * direita e agrupa miçangas consecutivas da mesma cor — exatamente a ordem em
+   * que você vai colocando na placa. Ex.: 2 brancas, 4 pretas, 2 brancas...
+   *
+   * Vazios (sem miçanga) das PONTAS são removidos; os do MEIO são mantidos como
+   * segmentos (idx = -1) para a posição/contagem continuar exata.
+   *
+   * @returns {{row, total, segs:[{idx, color, count}]}}
+   */
+  function rowRuns(grid, y) {
+    const { w, colors, assign } = grid;
+    const segs = [];
+    let total = 0;
+    let i = 0;
+    while (i < w) {
+      const a = assign[y * w + i];
+      let j = i + 1;
+      while (j < w && assign[y * w + j] === a) j++;
+      const count = j - i;
+      segs.push({ idx: a, color: a >= 0 ? colors[a] : null, count });
+      if (a >= 0) total += count;
+      i = j;
+    }
+    while (segs.length && segs[0].idx < 0) segs.shift();
+    while (segs.length && segs[segs.length - 1].idx < 0) segs.pop();
+    return { row: y, total, segs };
+  }
+
   /** Contagem por cor de uma ÚNICA linha (modo montagem). */
   function rowColorCounts(grid, y) {
     const { w, colors, assign } = grid;
@@ -625,5 +654,6 @@
     detectPixelArt,
     rowStats,
     rowColorCounts,
+    rowRuns,
   };
 })(window);

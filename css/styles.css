@@ -478,6 +478,12 @@ button:active { transform: translateY(1px); }
 .row-summary .rs-head { font-weight: 700; color: var(--accent); }
 .row-summary .rb-chip { font-size: 0.85rem; }
 .row-summary .rb-chip .sw { width: 14px; height: 14px; }
+/* Segmento vazio (furos a pular) no meio da linha. */
+.rb-chip.rb-gap { color: var(--muted); gap: 4px; }
+.rb-chip.rb-gap .sw {
+  background: transparent;
+  border: 1px dashed var(--muted);
+}
 
 /* ---------- Barra de montagem: configurações (⚙️) ---------- */
 /* No desktop, o wrapper de configurações é transparente (display:contents):
