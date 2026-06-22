@@ -344,6 +344,7 @@
     renderRowBreakdown();
     renderRowSummary();
     updateBadge();
+    updateDetectNotice();
     updateProgressUI();
     // Ajusta o enquadramento na primeira renderização desta imagem.
     if (!state._fitted) {
@@ -443,6 +444,26 @@
       used.toLocaleString('pt-BR') + ' beads</span>' +
       ' <span class="cap">na bandeja ' + BOARD + '×' + BOARD + '</span>' +
       detectedHint;
+  }
+
+  /**
+   * Aviso de grade detectada (pixel art). A detecção (HBPipeline.detectPixelArt)
+   * lê o período das transições de cor e deriva a grade original; quando acha,
+   * o tamanho já é aplicado automaticamente em resample(). Aqui só mostramos,
+   * de forma clara e visível, qual grade foi lida.
+   */
+  function updateDetectNotice() {
+    var el = $('detectNotice');
+    if (!el) return;
+    var d = state._detectedGrid;
+    if (d) {
+      el.innerHTML =
+        '🔍 Detectei uma grade de <b>' + d.gridW + '×' + d.gridH +
+        '</b> na imagem — ajustei o tamanho automaticamente. Mude no controle abaixo se quiser.';
+      el.hidden = false;
+    } else {
+      el.hidden = true;
+    }
   }
 
   /**

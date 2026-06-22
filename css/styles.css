@@ -149,6 +149,19 @@ button:active { transform: translateY(1px); }
 .file-btn:hover { filter: brightness(1.08); }
 
 .hint { font-size: 0.78rem; color: var(--muted); margin: 0 0 8px; }
+
+/* Aviso de grade detectada (pixel art): destaque verde no topo dos Ajustes. */
+.detect-notice {
+  margin: 0 0 12px;
+  padding: 9px 11px;
+  background: rgba(76, 175, 80, 0.14);
+  border: 1px solid var(--accent-2);
+  border-radius: 8px;
+  font-size: 0.84rem;
+  color: var(--text);
+  line-height: 1.35;
+}
+.detect-notice b { color: var(--accent-2); }
 .muted { color: var(--muted); font-size: 0.82rem; }
 
 /* ---------- Recorte ---------- */
