@@ -1198,11 +1198,18 @@
     Array.prototype.forEach.call(document.querySelectorAll('.ctl-group'), function (el) {
       el.classList.toggle('active', el.dataset.group === g);
     });
-    // Ao entrar em "Montar" pela 1ª vez, liga o modo montagem já em "linha por
-    // linha" (fluxo principal de montagem no celular).
-    if (g === 'montar' && !state.asm.on) {
-      setAssemblyOn(true);
-      if (state.asm.viewMode !== 'rows') setViewMode('rows');
+    // Ao entrar em "Montar", liga a montagem e garante o modo "linha por linha"
+    // (fluxo principal no celular) na 1ª entrada da sessão. Fazemos isso mesmo
+    // quando a montagem já vinha LIGADA do estado salvo — senão um PWA que
+    // salvou viewMode='whole' (localStorage próprio, separado do Safari) abria
+    // em "Desenho todo" e a linha em foco nunca aparecia. Só na 1ª vez para
+    // respeitar uma troca manual para "Desenho todo" durante o uso.
+    if (g === 'montar') {
+      if (!state.asm.on) setAssemblyOn(true);
+      if (!state._montarInit) {
+        state._montarInit = true;
+        if (state.asm.viewMode !== 'rows') setViewMode('rows');
+      }
     }
     // Fecha o painel de configurações ao trocar de aba.
     var s = $('asmSettings');
