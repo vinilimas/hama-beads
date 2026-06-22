@@ -67,6 +67,20 @@ h1, h2 { margin: 0; }
     overflow-y: auto;
   }
   .output { flex: 1 1 auto; min-width: 0; }
+  /* "Tirar foto" e o aviso de enquadramento são úteis só no celular.
+     (.file-btn.camera-btn p/ vencer a especificidade de .file-btn) */
+  .file-btn.camera-btn { display: none; }
+  #cropEmptyHint { display: none; }
+
+  /* Barra de montagem: mantém a ordem visual original no desktop, mesmo com o
+     novo agrupamento no DOM (asm-settings é display:contents aqui). */
+  .seg          { order: 1; }
+  .asm-rownav   { order: 2; }
+  .asm-focus    { order: 3; }
+  #colorDone    { order: 4; }
+  .asm-progress { order: 5; }
+  #progReset    { order: 6; }
+  .asm-screen   { order: 7; margin-left: auto; }
 }
 
 /* ---------- Painéis de controle ---------- */
@@ -465,6 +479,14 @@ button:active { transform: translateY(1px); }
 .row-summary .rb-chip { font-size: 0.85rem; }
 .row-summary .rb-chip .sw { width: 14px; height: 14px; }
 
+/* ---------- Barra de montagem: configurações (⚙️) ---------- */
+/* No desktop, o wrapper de configurações é transparente (display:contents):
+   modo, cor e botões de tela fluem na barra exatamente como antes. O botão ⚙️
+   e a barra de progresso do rodapé só existem no mobile. */
+.asm-settings { display: contents; }
+.asm-settings-btn { display: none; }
+.asm-progress-mobile { display: none; }
+
 /* ---------- Navegação mobile (rodapé) — escondida no desktop ---------- */
 .mobile-tabs { display: none; }
 
@@ -499,11 +521,14 @@ button:active { transform: translateY(1px); }
     border-radius: 0;
   }
   .output .viewport { flex: 1 1 auto; height: auto; min-height: 0; }
+  /* Legenda/contagem aparece só na aba Cores (passo 5). */
   .output .legend-wrap {
     flex: 0 0 auto;
-    max-height: 30%;
+    max-height: 34%;
     overflow-y: auto;
+    display: none;
   }
+  .layout[data-mtab="cores"] .output .legend-wrap { display: block; }
 
   /* ----- Conteúdo da aba ativa (rola no meio) ----- */
   .controls {
@@ -548,25 +573,89 @@ button:active { transform: translateY(1px); }
   .mtab:hover { filter: none; }
   .mtab:active { transform: none; }
 
-  /* ----- Aba "Montar": esconde controles, preview cresce ----- */
-  .layout[data-mtab="montar"] .output { flex: 1 1 auto; height: auto; }
-  .layout[data-mtab="montar"] .controls { display: none; }
-  /* Na montagem, o grid é o que importa: esconde a legenda longa
-     (a contagem por linha já aparece no mini-resumo). */
-  .layout[data-mtab="montar"] .legend-wrap { display: none; }
+  /* 6 abas no rodapé: fonte menor para caber. */
+  .mtab { font-size: 0.6rem; padding: 7px 1px; }
+  .mtab .mt-ico { font-size: 1.05rem; }
 
   /* A barra de montagem e o mini-resumo só aparecem na aba "Montar"
      (nas outras o preview fica limpo, só para conferência). */
   .assembly-bar { display: none; }
-  .layout[data-mtab="montar"] .assembly-bar { display: flex; }
   .row-summary { display: none; }
+  .layout[data-mtab="montar"] .assembly-bar { display: flex; }
   .layout[data-mtab="montar"] .row-summary { display: flex; }
 
-  /* Barra de montagem compacta no celular. */
-  .assembly-bar { gap: 6px 8px; padding: 6px 8px; }
-  .assembly-bar button { padding: 5px 7px; font-size: 0.8rem; }
-  .asm-progress .bar { width: 84px; }
-  .asm-focus select { min-width: 96px; }
+  /* Esconde o que é redundante ou não funciona no celular. */
+  .assembly-bar .amode { display: none; }        /* a aba já é "Montar" */
+  .asm-controls .asm-progress { display: none; } /* usa a barra do rodapé */
+  #progReset { display: none; }
+  #fsBtn { display: none; }                       /* fullscreen não pega no mobile */
+  #exportPanel { display: none; }                 /* export só no desktop */
+
+  /* Barra de montagem compacta: linha principal = navegação + ✓ + ⚙️. */
+  .assembly-bar { gap: 6px 8px; padding: 8px; }
+  .assembly-bar button { padding: 6px 9px; font-size: 0.82rem; }
+  .asm-controls { width: 100%; gap: 6px 8px; }
+  .asm-rownav { flex: 1 1 auto; }
+  .asm-rownav span { flex: 1 1 auto; text-align: center; }
+
+  /* ⚙️ Configurações: botão visível; painel abre como folha embaixo. */
+  .asm-settings-btn { display: inline-flex; }
+  .asm-settings {
+    display: none;
+    order: 99;
+    flex-basis: 100%;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-top: 2px;
+    padding: 10px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+  }
+  .asm-settings.open { display: flex; }
+  .asm-settings .seg { flex: 1 1 100%; }
+  .asm-settings .seg-btn { flex: 1; }
+  .asm-settings .asm-focus { flex: 1 1 100%; }
+  .asm-settings .asm-focus select { width: 100%; flex: 1 1 auto; }
+  .asm-settings .asm-screen { margin-left: 0; }
+
+  /* ----- Aba "Montar": PREVIEW grande no topo, controles embaixo ----- */
+  .layout[data-mtab="montar"] .output { flex: 1 1 auto; height: auto; }
+  .layout[data-mtab="montar"] .controls { display: none; }
+  .layout[data-mtab="montar"] .legend-wrap { display: none; }
+  /* Ordem (como o sketch): abas → preview → controles → resumo → progresso. */
+  .layout[data-mtab="montar"] .tabs         { order: 0; flex: 0 0 auto; }
+  .layout[data-mtab="montar"] .viewport     { order: 1; flex: 1 1 auto; }
+  .layout[data-mtab="montar"] .assembly-bar { order: 2; flex: 0 0 auto; }
+  .layout[data-mtab="montar"] .row-summary  { order: 3; flex: 0 0 auto; }
+  .layout[data-mtab="montar"] .asm-progress-mobile { order: 4; display: flex; flex: 0 0 auto; }
+
+  /* Barra de progresso do rodapé (destaque, largura total). */
+  .asm-progress-mobile {
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--panel);
+    border-top: 1px solid var(--line);
+  }
+  .asm-progress-mobile .bar {
+    flex: 1 1 auto;
+    height: 12px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .asm-progress-mobile .bar span {
+    display: block;
+    height: 100%;
+    width: 0%;
+    background: var(--accent-2);
+    transition: width 0.15s ease;
+  }
+  .asm-progress-mobile #progTextM { white-space: nowrap; font-size: 0.8rem; }
+  .asm-progress-mobile button { padding: 5px 8px; }
 
   /* Botões de zoom dispensáveis no celular (pinça funciona). */
   .zoom-controls { display: none; }

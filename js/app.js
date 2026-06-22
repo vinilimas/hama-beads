@@ -697,6 +697,10 @@
       }
     }
     $('progText').textContent = txt;
+    // Espelha na barra de progresso do rodapé (mobile).
+    var fillM = $('progFillM'), textM = $('progTextM');
+    if (fillM) fillM.style.width = pct + '%';
+    if (textM) textM.textContent = txt;
   }
 
   function resetProgress() {
@@ -803,7 +807,11 @@
       state.asm.currentRow = 0;
       saveProgress();
       $('cropPanel').hidden = false;
+      var hint = $('cropEmptyHint');
+      if (hint) hint.hidden = true;
       crop.setImage(img);
+      // No mobile, avança automaticamente para o passo de enquadramento.
+      if (window.matchMedia('(max-width: 919px)').matches) setMobileTab('enquadrar');
     };
     img.onerror = function () { alert('Não foi possível carregar a imagem.'); };
     img.src = src;
@@ -928,14 +936,16 @@
   //  BIND DOS CONTROLES                                                    //
   // ====================================================================== //
   function bindControls() {
-    // Upload
-    $('fileInput').addEventListener('change', function (e) {
+    // Upload (galeria e câmera usam o mesmo tratamento)
+    function handlePick(e) {
       var file = e.target.files && e.target.files[0];
       if (!file) return;
       var reader = new FileReader();
       reader.onload = function () { loadImage(reader.result); };
       reader.readAsDataURL(file);
-    });
+    }
+    $('fileInput').addEventListener('change', handlePick);
+    $('cameraInput').addEventListener('change', handlePick);
     $('sampleBtn').addEventListener('click', makeSampleImage);
     $('cropResetBtn').addEventListener('click', function () { crop.reset(); });
 
@@ -1134,6 +1144,11 @@
     $('focusColor').addEventListener('change', function (e) { focusColorCode(e.target.value); });
     $('colorDone').addEventListener('click', toggleColorDone);
     $('progReset').addEventListener('click', resetProgress);
+    $('progResetM').addEventListener('click', resetProgress);
+    // ⚙️ Configurações (mobile): abre/fecha o painel de ajustes da montagem.
+    $('settingsBtn').addEventListener('click', function () {
+      $('asmSettings').classList.toggle('open');
+    });
 
     // Tela
     $('lockBtn').addEventListener('click', function () { setLock(!state.asm.lock); });
@@ -1177,8 +1192,15 @@
     Array.prototype.forEach.call(document.querySelectorAll('.ctl-group'), function (el) {
       el.classList.toggle('active', el.dataset.group === g);
     });
-    // Ao entrar em "Montar", liga o modo montagem por conveniência.
-    if (g === 'montar' && !state.asm.on) setAssemblyOn(true);
+    // Ao entrar em "Montar" pela 1ª vez, liga o modo montagem já em "linha por
+    // linha" (fluxo principal de montagem no celular).
+    if (g === 'montar' && !state.asm.on) {
+      setAssemblyOn(true);
+      if (state.asm.viewMode !== 'rows') setViewMode('rows');
+    }
+    // Fecha o painel de configurações ao trocar de aba.
+    var s = $('asmSettings');
+    if (s) s.classList.remove('open');
     // A altura disponível para o preview muda — reencaixa o molde.
     if (state.grid && panzoom) {
       setTimeout(function () {

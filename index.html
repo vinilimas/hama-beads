@@ -29,11 +29,18 @@
           <h2>1 · Imagem</h2>
           <label class="file-btn">
             <input type="file" id="fileInput" accept="image/png,image/jpeg" hidden />
-            📷 Escolher imagem
+            📷 Escolher da galeria
+          </label>
+          <label class="file-btn camera-btn" id="cameraBtn">
+            <input type="file" id="cameraInput" accept="image/png,image/jpeg" capture="environment" hidden />
+            📸 Tirar foto
           </label>
           <button class="ghost" id="sampleBtn">Usar imagem de exemplo</button>
         </section>
+      </div>
 
+      <!-- ===== GRUPO: ENQUADRAR ===== -->
+      <div class="ctl-group" data-group="enquadrar">
         <!-- Recorte -->
         <section class="panel" id="cropPanel" hidden>
           <h2>2 · Enquadramento</h2>
@@ -43,10 +50,14 @@
             <button class="ghost" id="cropResetBtn">Centralizar</button>
           </div>
         </section>
+        <section class="panel" id="cropEmptyHint">
+          <h2>2 · Enquadramento</h2>
+          <p class="hint">Escolha uma imagem na aba <b>📷 Imagem</b> para enquadrar.</p>
+        </section>
       </div>
 
-      <!-- ===== GRUPO: AJUSTAR ===== -->
-      <div class="ctl-group" data-group="ajustar">
+      <!-- ===== GRUPO: AJUSTES ===== -->
+      <div class="ctl-group" data-group="ajustes">
         <!-- Ajustes -->
         <section class="panel">
           <h2>3 · Ajustes</h2>
@@ -77,6 +88,10 @@
           </div>
         </section>
 
+      </div>
+
+      <!-- ===== GRUPO: FUNDO ===== -->
+      <div class="ctl-group" data-group="fundo">
         <!-- Fundo -->
         <section class="panel">
           <h2>4 · Fundo</h2>
@@ -170,8 +185,8 @@
           <div class="row-breakdown" id="rowBreakdown"></div>
         </section>
 
-        <!-- Exportar -->
-        <section class="panel">
+        <!-- Exportar (escondido no mobile — só desktop) -->
+        <section class="panel" id="exportPanel">
           <h2>6 · Exportar</h2>
           <div class="row wrap">
             <button id="pngColorBtn" class="ghost">PNG colorido</button>
@@ -218,11 +233,7 @@
         <label class="amode"><input type="checkbox" id="asmOn" /> 🧩 Modo montagem</label>
 
         <div class="asm-controls" id="asmControls" hidden>
-          <div class="seg" role="group" aria-label="Formato">
-            <button id="viewWhole" class="seg-btn active">Desenho todo</button>
-            <button id="viewRows" class="seg-btn">Linha por linha</button>
-          </div>
-
+          <!-- Linha principal: navegação de linha + marcar linha + ⚙️ -->
           <div class="asm-rownav" id="rowNav" hidden>
             <button id="rowPrev" title="Linha anterior">◀</button>
             <span id="rowLabel">Linha 0</span>
@@ -230,22 +241,34 @@
             <button id="rowDone" class="ghost">✓ linha feita</button>
           </div>
 
-          <label class="asm-focus">Cor:
-            <select id="focusColor"><option value="">todas</option></select>
-          </label>
-          <button id="colorDone" class="ghost" hidden>✓ cor feita</button>
+          <button id="settingsBtn" class="ghost asm-settings-btn" title="Configurações">⚙️</button>
 
+          <!-- Painel de configurações (inline no desktop; abre pelo ⚙️ no mobile).
+               Reúne: modo de visualização, cor focada e controles de tela. -->
+          <div class="asm-settings" id="asmSettings">
+            <div class="seg" role="group" aria-label="Formato">
+              <button id="viewWhole" class="seg-btn active">Desenho todo</button>
+              <button id="viewRows" class="seg-btn">Linha por linha</button>
+            </div>
+
+            <label class="asm-focus">Cor:
+              <select id="focusColor"><option value="">todas</option></select>
+            </label>
+            <button id="colorDone" class="ghost" hidden>✓ cor feita</button>
+
+            <div class="asm-screen">
+              <button id="lockBtn" class="ghost" title="Travar zoom/pan (evita toque acidental)">🔒</button>
+              <button id="wakeBtn" class="ghost" title="Manter a tela acesa">☀</button>
+              <button id="fsBtn" class="ghost" title="Tela cheia">⛶</button>
+            </div>
+          </div>
+
+          <!-- Progresso inline (desktop). No mobile usa a barra do rodapé. -->
           <div class="asm-progress">
             <div class="bar"><span id="progFill"></span></div>
             <span id="progText" class="muted">0%</span>
           </div>
           <button id="progReset" class="ghost" title="Zerar progresso">↺</button>
-        </div>
-
-        <div class="asm-screen">
-          <button id="lockBtn" class="ghost" title="Travar zoom/pan (evita toque acidental)">🔒</button>
-          <button id="wakeBtn" class="ghost" title="Manter a tela acesa">☀</button>
-          <button id="fsBtn" class="ghost" title="Tela cheia">⛶</button>
         </div>
       </div>
 
@@ -262,6 +285,14 @@
         <p class="placeholder" id="placeholder">Escolha uma imagem para começar →<br />ou use a de exemplo.</p>
       </div>
 
+      <!-- Barra de progresso do rodapé (visibilidade controlada por CSS:
+           só aparece no mobile, na aba Montar). -->
+      <div class="asm-progress-mobile" id="asmProgressMobile">
+        <div class="bar"><span id="progFillM"></span></div>
+        <span id="progTextM" class="muted">0%</span>
+        <button id="progResetM" class="ghost" title="Zerar progresso">↺</button>
+      </div>
+
       <div class="legend-wrap">
         <div class="legend-head">
           <h2>Legenda &amp; contagem</h2>
@@ -274,7 +305,9 @@
     <!-- ============================ NAVEGAÇÃO MOBILE (rodapé) ============= -->
     <nav class="mobile-tabs" id="mobileTabs">
       <button class="mtab active" data-mtab="imagem"><span class="mt-ico">📷</span>Imagem</button>
-      <button class="mtab" data-mtab="ajustar"><span class="mt-ico">⚙️</span>Ajustar</button>
+      <button class="mtab" data-mtab="enquadrar"><span class="mt-ico">✂️</span>Recorte</button>
+      <button class="mtab" data-mtab="ajustes"><span class="mt-ico">🎚️</span>Ajustes</button>
+      <button class="mtab" data-mtab="fundo"><span class="mt-ico">🪣</span>Fundo</button>
       <button class="mtab" data-mtab="cores"><span class="mt-ico">🎨</span>Cores</button>
       <button class="mtab" data-mtab="montar"><span class="mt-ico">🧩</span>Montar</button>
     </nav>
