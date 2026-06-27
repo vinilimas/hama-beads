@@ -39,6 +39,32 @@
     { code: 'H4', name: 'cinza escuro', hex: '#5E5E5E' },
     { code: 'H5', name: 'grafite', hex: '#383838' },
     { code: 'H7', name: 'preto', hex: '#1A1A1A' },
+
+    // Cartão de referência "2" do kit (hex aproximados extraídos da foto).
+    { code: 'B12', name: 'verde-petróleo escuro', hex: '#3F5E5E' },
+    { code: 'C11', name: 'teal acinzentado', hex: '#6E9494' },
+    { code: 'C10', name: 'azul-acinzentado', hex: '#7BA0AD' },
+    { code: 'C02', name: 'azul-gelo claro', hex: '#A7C8CE' },
+    { code: 'D03', name: 'azul-índigo', hex: '#4A5A8C' },
+    { code: 'C07', name: 'azul-ardósia', hex: '#5E7E96' },
+    { code: 'C06', name: 'azul-aço', hex: '#7196AE' },
+    { code: 'C13', name: 'azul-aço claro', hex: '#AAC4D2' },
+    { code: 'D15', name: 'azul-marinho/índigo', hex: '#38406E' },
+    { code: 'D21', name: 'vinho/bordô', hex: '#834C5C' },
+    { code: 'D18', name: 'malva empoeirado', hex: '#9C7480' },
+    { code: 'D19', name: 'rosa empoeirado', hex: '#C99FAC' },
+    { code: 'E07', name: 'vermelho-marsala', hex: '#8E3B48' },
+    { code: 'D13', name: 'rosa-vinho', hex: '#973F50' },
+    { code: 'E03', name: 'malva-acinzentado', hex: '#B89BA0' },
+    { code: 'E08', name: 'rosa-pêssego claro', hex: '#E2B7AE' },
+    { code: 'F08', name: 'tijolo/ferrugem', hex: '#A04A3C' },
+    { code: 'F13', name: 'terracota', hex: '#B06A3E' },
+    { code: 'A10', name: 'laranja-ocre', hex: '#CE8A3C' },
+    { code: 'A13', name: 'mostarda dourado', hex: '#D8A842' },
+    { code: 'G08', name: 'cinza-carvão', hex: '#4C4C46' },
+    { code: 'G13', name: 'cinza-taupe', hex: '#8B897B' },
+    { code: 'G09', name: 'caramelo/tan', hex: '#C7A06C' },
+    { code: 'A11', name: 'dourado-tan', hex: '#D7B36A' },
   ];
 
   const STORAGE_KEY = 'hama-beads-palette-v1';
