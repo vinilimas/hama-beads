@@ -20,6 +20,16 @@
     return lum > 140 ? '#111' : '#fff';
   }
 
+  /** Luminância (0..255) de uma cor hex "#rrggbb". Branco quando inválida. */
+  function hexLum(hex) {
+    const h = String(hex || '').replace('#', '');
+    if (h.length < 6) return 255;
+    const r = parseInt(h.slice(0, 2), 16);
+    const g = parseInt(h.slice(2, 4), 16);
+    const b = parseInt(h.slice(4, 6), 16);
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  }
+
   /** Mistura uma cor com branco (t=0 -> cor cheia, t=1 -> branco). */
   function tintToWhite(r, g, b, t) {
     return {
@@ -58,8 +68,12 @@
     canvas.height = h * cell + margin;
     const ctx = canvas.getContext('2d');
 
-    // Fundo branco (importante para impressão).
-    ctx.fillStyle = '#ffffff';
+    // Cor de fundo. Padrão branco (importante para impressão); o preview na tela
+    // pode passar um fundo escuro (opts.bg) para destacar miçangas brancas, que
+    // de outra forma somem no branco. Células vazias ficam com essa cor.
+    const bg = opts.bg || '#ffffff';
+    const bgDark = hexLum(bg) < 128;
+    ctx.fillStyle = bg;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     const ox = margin; // deslocamento por causa dos eixos
@@ -134,9 +148,11 @@
       }
     }
 
-    // Linhas finas por célula
+    // Linhas finas por célula (claras quando o fundo é escuro).
     if (showGrid && cell >= 4) {
-      ctx.strokeStyle = mode === 'code' ? 'rgba(0,0,0,0.28)' : 'rgba(0,0,0,0.18)';
+      ctx.strokeStyle = bgDark
+        ? 'rgba(255,255,255,0.16)'
+        : (mode === 'code' ? 'rgba(0,0,0,0.28)' : 'rgba(0,0,0,0.18)');
       ctx.lineWidth = 1;
       ctx.beginPath();
       for (let x = 0; x <= w; x++) {
@@ -154,7 +170,7 @@
 
     // Linhas-guia grossas a cada guideEvery células
     if (guideEvery > 0) {
-      ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+      ctx.strokeStyle = bgDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.85)';
       ctx.lineWidth = 2;
       ctx.beginPath();
       for (let x = 0; x <= w; x += guideEvery) {
@@ -202,7 +218,7 @@
 
     // Numeração dos eixos (modo código)
     if (showAxes) {
-      ctx.fillStyle = '#444';
+      ctx.fillStyle = bgDark ? '#bbb' : '#444';
       ctx.font = Math.max(8, Math.floor(margin * 0.5)) + 'px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';

@@ -6,7 +6,7 @@
  * versão, troque CACHE_VERSION para forçar a atualização dos arquivos.
  * --------------------------------------------------------------------------
  */
-const CACHE_VERSION = 'hama-v9';
+const CACHE_VERSION = 'hama-v10';
 
 // App shell — tudo que o app precisa para abrir e converter offline.
 const ASSETS = [

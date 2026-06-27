@@ -70,6 +70,7 @@
       maxColors: 0,
       bgMode: 'keep', bgColor: '', bgTol: 14,
       splitMode: 'single', cellsPerPage: 26,
+      previewBg: '#ffffff',   // cor de fundo do preview na tela (não afeta o PNG/PDF)
     },
     // Proporção do recorte e dimensões resultantes da imagem na bandeja.
     cropAR: 1,   // largura/altura do recorte
@@ -348,7 +349,7 @@
 
     HBRender.drawGrid($('colorCanvas'), g, {
       mode: 'color', cellSize: COLOR_CELL, showGrid: g.w <= 64, guideEvery: 10,
-      trayDiameter: tray,
+      trayDiameter: tray, bg: state.params.previewBg,
       focusIndex: ov.focusIndex, activeRow: ov.activeRow, progress: ov.progress,
     });
     HBRender.drawGrid($('codeCanvas'), g, {
@@ -521,6 +522,34 @@
     updateBadge();
     if (resampleNow) resample();
     return true;
+  }
+
+  // ----- Cor de fundo do preview (branco <-> preto) -----------------------
+  // Só afeta o canvas colorido na tela (o PNG/PDF continua branco). Útil para
+  // distinguir miçangas brancas quando o fundo da arte também é branco.
+  var PREVIEW_BG_LIGHT = '#ffffff';
+  var PREVIEW_BG_DARK = '#16161a';
+
+  function updateBgToggle() {
+    var sw = $('bgSw');
+    if (sw) sw.style.background = state.params.previewBg;
+  }
+  function setPreviewBg(color) {
+    state.params.previewBg = color;
+    try { localStorage.setItem('hama-preview-bg', color); } catch (e) {}
+    updateBgToggle();
+    if (state.grid) renderAll();
+  }
+  function togglePreviewBg() {
+    var isLight = (state.params.previewBg || '').toLowerCase() === PREVIEW_BG_LIGHT;
+    setPreviewBg(isLight ? PREVIEW_BG_DARK : PREVIEW_BG_LIGHT);
+  }
+  function loadPreviewBg() {
+    try {
+      var saved = localStorage.getItem('hama-preview-bg');
+      if (saved) state.params.previewBg = saved;
+    } catch (e) {}
+    updateBgToggle();
   }
 
   function renderLegend() {
@@ -1417,6 +1446,9 @@
     $('zoomReset').addEventListener('click', function () {
       panzoom.fit(activeTab === 'color' ? $('colorCanvas') : $('codeCanvas'));
     });
+
+    // Cor de fundo do preview (branco <-> preto).
+    $('bgToggle').addEventListener('click', togglePreviewBg);
   }
 
   function bindRange(id, outId, cb, custom) {
@@ -1633,6 +1665,7 @@
     renderReplacements();
     bindControls();
     initMobileTabs();
+    loadPreviewBg();
 
     // Restaura a última grade (convertida/editada) salva — não perde o trabalho
     // ao recarregar. O molde é autocontido (não precisa da imagem para renderizar,
