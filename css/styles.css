@@ -317,6 +317,37 @@ button:active { transform: translateY(1px); }
 }
 .asm-screen { margin-left: auto; display: flex; gap: 4px; }
 .assembly-bar button.on { background: var(--accent); color: #1a1a1a; border-color: var(--accent); }
+
+/* ---------- Barra de edição (editor de grade) ---------- */
+.edit-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 10px;
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--line);
+}
+.edit-bar .emode {
+  display: flex; align-items: center; gap: 6px;
+  font-weight: 600; white-space: nowrap;
+}
+.edit-bar .emode input { width: 16px; height: 16px; accent-color: var(--accent); }
+.edit-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.edit-tools .seg-btn { font-size: 1rem; padding: 6px 10px; }
+.edit-colors {
+  display: flex; gap: 4px; flex-wrap: nowrap; overflow-x: auto;
+  max-width: 100%; padding: 2px; -webkit-overflow-scrolling: touch;
+}
+.ec-sw {
+  width: 26px; height: 26px; flex: 0 0 auto; border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.25); padding: 0; cursor: pointer;
+}
+.ec-sw.selected { outline: 3px solid var(--accent); outline-offset: 1px; }
+.edit-actions { display: flex; gap: 4px; }
+.edit-bar button { padding: 6px 9px; font-size: 0.85rem; }
+.edit-bar button:disabled { opacity: 0.4; cursor: default; }
+
 .viewport.locked { cursor: default; }
 .viewport.locked .size-handle { display: none !important; }
 
@@ -703,6 +734,24 @@ button:active { transform: translateY(1px); }
   }
   .asm-progress-mobile #progTextM { white-space: nowrap; font-size: 0.8rem; }
   .asm-progress-mobile button { padding: 5px 8px; }
+
+  /* ----- Aba "Editar": barra de ferramentas só aqui; preview grande no topo,
+     barra de edição embaixo (mesmo esquema da aba Montar). ----- */
+  .edit-bar { display: none; }
+  .edit-bar .emode { display: none; }            /* a aba já é "Editar" */
+  .layout[data-mtab="editar"] .edit-bar { display: flex; }
+  .layout[data-mtab="editar"] .output { flex: 1 1 auto; height: auto; }
+  .layout[data-mtab="editar"] .controls { display: none; }
+  .layout[data-mtab="editar"] .legend-wrap { display: none; }
+  .layout[data-mtab="editar"] .tabs      { order: 0; flex: 0 0 auto; }
+  .layout[data-mtab="editar"] .viewport  { order: 1; flex: 1 1 auto; }
+  .layout[data-mtab="editar"] .edit-bar  { order: 2; flex: 0 0 auto; }
+  .edit-bar { gap: 6px 8px; padding: 8px; }
+  .edit-bar button { min-height: 40px; }
+  .edit-bar .edit-tools  { order: 1; }
+  .edit-bar .edit-actions { order: 2; margin-left: auto; }
+  .edit-bar .edit-colors { order: 3; flex: 1 1 100%; }
+  .edit-bar .ec-sw { width: 30px; height: 30px; }
 
   /* Botões de zoom dispensáveis no celular (pinça funciona). */
   .zoom-controls { display: none; }

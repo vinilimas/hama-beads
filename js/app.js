@@ -85,6 +85,15 @@
       lock: false,
       wake: false,
     },
+    // Estado do EDITOR de grade (pincel/borracha/balde/conta-gotas).
+    edit: {
+      on: false,
+      tool: 'brush',     // 'brush' | 'erase' | 'fill' | 'pick'
+      colorCode: '',     // código da cor ativa (pincel/balde)
+      undo: [],          // pilha de snapshots (Int16Array de assign)
+      redo: [],
+      dirty: false,
+    },
   };
 
   var crop = null;
@@ -101,7 +110,8 @@
     this.scale = 1; this.tx = 0; this.ty = 0;
     this.pointers = new Map();
     this.pinch = null;
-    this.locked = false; // quando travado, ignora pan/zoom (mas o tap ainda marca)
+    this.locked = false;    // quando travado, ignora pan/zoom (mas o tap ainda marca)
+    this.paintMode = false; // no editor: 1 dedo PINTA (não dá pan); 2 dedos = pinça
     var self = this;
 
     viewport.addEventListener('pointerdown', function (e) {
@@ -116,7 +126,11 @@
       var p = self._rel(e);
       self.pointers.set(e.pointerId, p);
       if (self.pointers.size === 1) {
-        self.tx += p.x - prev.x; self.ty += p.y - prev.y; self._apply();
+        // No modo de pintura, 1 dedo não dá pan (quem pinta é o editor); a pinça
+        // de 2 dedos continua valendo (por isso seguimos registrando o ponteiro).
+        if (!self.paintMode) {
+          self.tx += p.x - prev.x; self.ty += p.y - prev.y; self._apply();
+        }
       } else if (self.pointers.size === 2) {
         self._updatePinch();
       }
@@ -202,6 +216,7 @@
 
   /** ETAPA A — recorta, aplica filtros e amostra para a grade. */
   function resample() {
+    if (state.edit.on) return; // edição congela a conversão (não apaga os traços)
     if (!crop || !state.image) return;
     var cropped = crop.getCroppedCanvas(WORK_MAX);
     if (!cropped) return;
@@ -265,6 +280,7 @@
 
   /** ETAPA B — mapeia para a paleta e renderiza. */
   function remap() {
+    if (state.edit.on) return; // edição congela a conversão (não apaga os traços)
     if (!state.sample) return;
     var p = state.params;
     var active = HBPalette.activeColors(state.palette);
@@ -286,6 +302,7 @@
     state.grid = grid;
     updateFocusOptions();
     renderAll();
+    saveEditGrid(); // persiste a grade atual (recupera o trabalho ao recarregar)
   }
 
   /** Aplica as substituições globais de cor configuradas. */
@@ -473,9 +490,9 @@
    */
   function updateSizer() {
     var handle = $('sizeHandle');
-    // Esconde a alça fora da aba de cor, sem grade, ou durante a montagem
-    // (evita redimensionar sem querer ao tocar para marcar células).
-    if (!state.grid || activeTab !== 'color' || state.asm.on) {
+    // Esconde a alça fora da aba de cor, sem grade, ou durante a montagem/edição
+    // (evita redimensionar sem querer ao tocar para marcar/pintar células).
+    if (!state.grid || activeTab !== 'color' || state.asm.on || state.edit.on) {
       handle.hidden = true;
       return;
     }
@@ -545,6 +562,7 @@
 
   /** Liga/desliga o modo montagem e mostra/esconde os controles. */
   function setAssemblyOn(on) {
+    if (on && state.edit.on) setEditOn(false); // não dá para montar e editar juntos
     state.asm.on = on;
     $('asmOn').checked = on;
     $('asmControls').hidden = !on;
@@ -697,7 +715,7 @@
       if (e.pointerId !== pid) return;
       var isTap = !moved && (Date.now() - st) < 400;
       pid = null;
-      if (isTap && state.asm.on && state.grid) {
+      if (isTap && state.asm.on && !state.edit.on && state.grid) {
         var cell = viewportToCell(e.clientX, e.clientY);
         if (cell) toggleCellDone(cell);
       }
@@ -820,6 +838,264 @@
   }
 
   // ====================================================================== //
+  //  EDITOR DE GRADE                                                       //
+  //  Pincel / borracha / balde / conta-gotas. Opera direto em             //
+  //  state.grid.assign (bandeja 52×52). Enquanto ligado, a conversão fica  //
+  //  congelada (resample/remap retornam cedo) para não apagar os traços.   //
+  // ====================================================================== //
+
+  var editStrokeSnapped = false; // já tiramos snapshot deste gesto?
+
+  /** Liga/desliga o modo edição. Exige uma grade já existente. */
+  function setEditOn(on) {
+    if (on && !state.grid) on = false; // nada para editar ainda
+    state.edit.on = on;
+    $('editOn').checked = on;
+    $('editControls').hidden = !on;
+    if (panzoom) panzoom.paintMode = on;
+    if (on) {
+      if (state.asm.on) setAssemblyOn(false); // edição e montagem não convivem
+      if (!state.edit.colorCode) {
+        var act = HBPalette.activeColors(state.palette);
+        if (act.length) state.edit.colorCode = act[0].code;
+      }
+      buildEditColors();
+      updateUndoRedo();
+    }
+    updateSizer();
+    if (state.grid) renderAll();
+  }
+
+  /** Define a ferramenta ativa e destaca o botão. */
+  function setTool(tool) {
+    state.edit.tool = tool;
+    [['brush', 'toolBrush'], ['erase', 'toolErase'],
+     ['fill', 'toolFill'], ['pick', 'toolPick']].forEach(function (t) {
+      var el = $(t[1]);
+      if (el) el.classList.toggle('active', t[0] === tool);
+    });
+  }
+
+  /** Monta a régua de cores (paleta ativa) para escolher a cor do pincel. */
+  function buildEditColors() {
+    var box = $('editColors');
+    if (!box) return;
+    box.innerHTML = '';
+    HBPalette.activeColors(state.palette).forEach(function (c) {
+      var b = document.createElement('button');
+      b.className = 'ec-sw' + (c.code === state.edit.colorCode ? ' selected' : '');
+      b.style.background = c.hex;
+      b.title = c.code + ' · ' + (c.name || '');
+      b.setAttribute('data-code', c.code);
+      b.addEventListener('click', function () { selectEditColor(c.code); });
+      box.appendChild(b);
+    });
+  }
+
+  /** Escolhe a cor ativa (e, se estava no conta-gotas, volta ao pincel). */
+  function selectEditColor(code) {
+    state.edit.colorCode = code;
+    if (state.edit.tool === 'pick') setTool('brush');
+    var box = $('editColors');
+    if (box) {
+      Array.prototype.forEach.call(box.children, function (el) {
+        el.classList.toggle('selected', el.getAttribute('data-code') === code);
+      });
+    }
+  }
+
+  /**
+   * Índice (em state.grid.colors) da cor de código `code`. Se a cor ainda não
+   * está na grade, adiciona (append-only: índices antigos seguem válidos, o que
+   * mantém os snapshots de undo consistentes).
+   */
+  function ensureColorIndex(code) {
+    var g = state.grid;
+    var idx = g.colors.findIndex(function (c) { return c.code === code; });
+    if (idx >= 0) return idx;
+    var c = state.palette.find(function (p) { return p.code === code; });
+    if (!c) return -1;
+    g.colors.push(c);
+    return g.colors.length - 1;
+  }
+
+  /** Snapshot do assign no início do gesto (uma vez por traço). */
+  function pushUndoOnce() {
+    if (editStrokeSnapped) return;
+    editStrokeSnapped = true;
+    state.edit.undo.push(Int16Array.from(state.grid.assign));
+    if (state.edit.undo.length > 60) state.edit.undo.shift();
+    state.edit.redo.length = 0;
+  }
+
+  /** Preenchimento por área (flood fill, 4 vizinhos) a partir da célula i. */
+  function floodFill(start, toIdx) {
+    var g = state.grid, a = g.assign, w = g.w, h = g.h;
+    var target = a[start];
+    if (target === toIdx) return;
+    var stack = [start];
+    while (stack.length) {
+      var i = stack.pop();
+      if (a[i] !== target) continue;
+      a[i] = toIdx;
+      var x = i % w, y = (i / w) | 0;
+      if (x > 0) stack.push(i - 1);
+      if (x < w - 1) stack.push(i + 1);
+      if (y > 0) stack.push(i - w);
+      if (y < h - 1) stack.push(i + w);
+    }
+  }
+
+  /** Aplica a ferramenta ativa na célula. */
+  function applyTool(cell) {
+    var g = state.grid, i = cell.i, tool = state.edit.tool;
+
+    if (tool === 'pick') {
+      var a = g.assign[i];
+      if (a >= 0) selectEditColor(g.colors[a].code);
+      return;
+    }
+    if (tool === 'erase') {
+      if (g.assign[i] === -1) return;
+      pushUndoOnce();
+      g.assign[i] = -1;
+    } else if (tool === 'fill') {
+      var fi = ensureColorIndex(state.edit.colorCode);
+      if (fi < 0) return;
+      if (g.assign[i] === fi) return;
+      pushUndoOnce();
+      floodFill(i, fi);
+    } else { // brush
+      var bi = ensureColorIndex(state.edit.colorCode);
+      if (bi < 0) return;
+      if (g.assign[i] === bi) return;
+      pushUndoOnce();
+      g.assign[i] = bi;
+    }
+    state.edit.dirty = true;
+    commitEdit();
+  }
+
+  /** Re-renderiza, persiste e atualiza os botões de desfazer/refazer. */
+  function commitEdit() {
+    updateFocusOptions();
+    renderAll();
+    saveEditGrid();
+    updateUndoRedo();
+  }
+
+  function doUndo() {
+    var u = state.edit.undo;
+    if (!u.length || !state.grid) return;
+    state.edit.redo.push(Int16Array.from(state.grid.assign));
+    state.grid.assign = u.pop();
+    commitEdit();
+  }
+  function doRedo() {
+    var r = state.edit.redo;
+    if (!r.length || !state.grid) return;
+    state.edit.undo.push(Int16Array.from(state.grid.assign));
+    state.grid.assign = r.pop();
+    commitEdit();
+  }
+  function updateUndoRedo() {
+    var u = $('editUndo'), r = $('editRedo');
+    if (u) u.disabled = !state.edit.undo.length;
+    if (r) r.disabled = !state.edit.redo.length;
+  }
+
+  /**
+   * Captura de toque para PINTAR: 1 dedo pinta/arrasta; ao surgir um 2º dedo o
+   * traço é cancelado (vira pan/zoom no PanZoom). Roda em paralelo ao PanZoom,
+   * que no paintMode ignora o pan de 1 dedo.
+   */
+  function setupEditPaint() {
+    var vp = $('viewport');
+    var painting = false, pid = null, lastCell = -1, count = 0;
+
+    function paintAt(cx, cy) {
+      var cell = viewportToCell(cx, cy);
+      if (!cell) return;
+      if (state.edit.tool !== 'pick' && cell.i === lastCell) return;
+      lastCell = cell.i;
+      applyTool(cell);
+    }
+
+    vp.addEventListener('pointerdown', function (e) {
+      count++;
+      if (!state.edit.on || !state.grid) return;
+      if (count > 1) { painting = false; pid = null; return; } // 2 dedos = pan/zoom
+      pid = e.pointerId; painting = true; lastCell = -1; editStrokeSnapped = false;
+      paintAt(e.clientX, e.clientY);
+      e.preventDefault();
+    });
+    vp.addEventListener('pointermove', function (e) {
+      if (!painting || e.pointerId !== pid) return;
+      paintAt(e.clientX, e.clientY);
+      e.preventDefault();
+    });
+    function end(e) {
+      count = Math.max(0, count - 1);
+      if (e.pointerId === pid) { painting = false; pid = null; }
+    }
+    vp.addEventListener('pointerup', end);
+    vp.addEventListener('pointercancel', end);
+  }
+
+  function bindEdit() {
+    $('editOn').addEventListener('change', function (e) { setEditOn(e.target.checked); });
+    $('toolBrush').addEventListener('click', function () { setTool('brush'); });
+    $('toolErase').addEventListener('click', function () { setTool('erase'); });
+    $('toolFill').addEventListener('click', function () { setTool('fill'); });
+    $('toolPick').addEventListener('click', function () { setTool('pick'); });
+    $('editUndo').addEventListener('click', doUndo);
+    $('editRedo').addEventListener('click', doRedo);
+    setupEditPaint();
+  }
+
+  // ----- Persistência da grade (editada/convertida) -----------------------
+  // Salva o assign + as cores como base64; restaura no reload. De quebra,
+  // recupera a grade ao reabrir o app (antes o progresso era salvo, mas a
+  // grade sumia).
+  var saveEditGrid = debounce(function () {
+    try {
+      if (!state.grid) { localStorage.removeItem('hama-edit-v1'); return; }
+      var g = state.grid;
+      var i16 = g.assign instanceof Int16Array ? g.assign : Int16Array.from(g.assign);
+      var u8 = new Uint8Array(i16.buffer, i16.byteOffset, i16.byteLength);
+      var bin = '';
+      for (var k = 0; k < u8.length; k++) bin += String.fromCharCode(u8[k]);
+      localStorage.setItem('hama-edit-v1', JSON.stringify({
+        w: g.w, h: g.h,
+        colors: g.colors.map(function (c) { return { code: c.code, name: c.name || '', hex: c.hex }; }),
+        assign: btoa(bin),
+        imgW: state.imgW, imgH: state.imgH,
+      }));
+    } catch (e) { /* localStorage indisponível — ignora */ }
+  }, 300);
+
+  function loadEditGrid() {
+    try {
+      var raw = localStorage.getItem('hama-edit-v1');
+      if (!raw) return null;
+      var d = JSON.parse(raw);
+      if (!d || !d.assign || !Array.isArray(d.colors)) return null;
+      var bin = atob(d.assign);
+      if (bin.length % 2 !== 0) return null;
+      var u8 = new Uint8Array(bin.length);
+      for (var k = 0; k < bin.length; k++) u8[k] = bin.charCodeAt(k);
+      var assign = Int16Array.from(new Int16Array(u8.buffer));
+      if (assign.length !== d.w * d.h) return null;
+      var colors = d.colors.map(function (c) {
+        return HBPalette.refreshColor({ code: c.code, name: c.name || '', hex: c.hex, enabled: true });
+      });
+      if (typeof d.imgW === 'number') state.imgW = d.imgW;
+      if (typeof d.imgH === 'number') state.imgH = d.imgH;
+      return { w: d.w, h: d.h, colors: colors, assign: assign };
+    } catch (e) { return null; }
+  }
+
+  // ====================================================================== //
   //  CARREGAR IMAGEM                                                       //
   // ====================================================================== //
   function loadImage(src) {
@@ -936,6 +1212,8 @@
 
     $('replaceFrom').innerHTML = optionsHtml;
     $('replaceTo').innerHTML = optionsHtml;
+
+    buildEditColors(); // mantém a régua de cores do editor em sincronia
   }
 
   function renderReplacements() {
@@ -1082,6 +1360,9 @@
     // Modo montagem
     bindAssembly();
 
+    // Editor de grade
+    bindEdit();
+
     // Zoom
     $('zoomIn').addEventListener('click', function () {
       var r = $('viewport').getBoundingClientRect();
@@ -1216,6 +1497,8 @@
     Array.prototype.forEach.call(document.querySelectorAll('.mtab'), function (b) {
       b.classList.toggle('active', b.dataset.mtab === g);
     });
+    // Sair da aba "Editar" desliga o modo edição (descongela a conversão).
+    if (g !== 'editar' && state.edit.on) setEditOn(false);
     Array.prototype.forEach.call(document.querySelectorAll('.ctl-group'), function (el) {
       el.classList.toggle('active', el.dataset.group === g);
     });
@@ -1232,6 +1515,8 @@
         if (state.asm.viewMode !== 'rows') setViewMode('rows');
       }
     }
+    // Ao entrar em "Editar", liga o modo edição (precisa de uma grade pronta).
+    if (g === 'editar') setEditOn(true);
     // Fecha o painel de configurações ao trocar de aba.
     var s = $('asmSettings');
     if (s) s.classList.remove('open');
@@ -1306,6 +1591,17 @@
     renderReplacements();
     bindControls();
     initMobileTabs();
+
+    // Restaura a última grade (convertida/editada) salva — não perde o trabalho
+    // ao recarregar. O molde é autocontido (não precisa da imagem para renderizar,
+    // editar, montar ou exportar; só a reconversão precisaria da foto de novo).
+    var restored = loadEditGrid();
+    if (restored) {
+      state.grid = restored;
+      state._fitted = false;
+      updateFocusOptions();
+      renderAll();
+    }
 
     // Reflete valores iniciais nos outputs.
     $('maxColorsOut').textContent = 'sem limite';

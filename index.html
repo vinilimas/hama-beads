@@ -215,6 +215,14 @@
         </section>
       </div>
 
+      <!-- ===== GRUPO: EDITAR (placeholder no mobile; o preview cresce) ===== -->
+      <div class="ctl-group" data-group="editar">
+        <section class="panel">
+          <h2>Editar grade</h2>
+          <p class="hint">Use a barra <b>✏️ Modo edição</b> acima do preview: escolha <b>pincel</b>, <b>borracha</b>, <b>balde</b> ou <b>conta-gotas</b> e toque nas células. No celular, dois dedos para mover/dar zoom. Editar <b>congela a conversão</b> — saia do modo para reajustar imagem/cores.</p>
+        </section>
+      </div>
+
       <!-- ===== GRUPO: MONTAR (placeholder no mobile; o preview cresce) ===== -->
       <div class="ctl-group" data-group="montar">
         <section class="panel">
@@ -280,6 +288,29 @@
         </div>
       </div>
 
+      <!-- Barra de edição da grade (pincel, borracha, balde, conta-gotas).
+           No mobile, aparece só na aba "Editar"; no desktop, sempre visível e
+           ligada pelo checkbox "Modo edição". -->
+      <div class="edit-bar" id="editBar">
+        <label class="emode"><input type="checkbox" id="editOn" /> ✏️ Modo edição</label>
+
+        <div class="edit-controls" id="editControls" hidden>
+          <div class="seg edit-tools" role="group" aria-label="Ferramenta">
+            <button id="toolBrush" class="seg-btn active" title="Pincel — pinta com a cor escolhida">🖌️</button>
+            <button id="toolErase" class="seg-btn" title="Borracha — remove a miçanga">🧽</button>
+            <button id="toolFill"  class="seg-btn" title="Balde — preenche a área conectada">🪣</button>
+            <button id="toolPick"  class="seg-btn" title="Conta-gotas — copia a cor de uma célula">💧</button>
+          </div>
+
+          <div class="edit-colors" id="editColors" aria-label="Cor ativa"></div>
+
+          <div class="edit-actions">
+            <button id="editUndo" class="ghost" title="Desfazer">↶</button>
+            <button id="editRedo" class="ghost" title="Refazer">↷</button>
+          </div>
+        </div>
+      </div>
+
       <!-- Mini-resumo da linha atual (modo montagem "linha por linha"). -->
       <div class="row-summary" id="rowSummary" hidden></div>
 
@@ -317,6 +348,7 @@
       <button class="mtab" data-mtab="ajustes"><span class="mt-ico">🎚️</span>Ajustes</button>
       <button class="mtab" data-mtab="fundo"><span class="mt-ico">🪣</span>Fundo</button>
       <button class="mtab" data-mtab="cores"><span class="mt-ico">🎨</span>Cores</button>
+      <button class="mtab" data-mtab="editar"><span class="mt-ico">✏️</span>Editar</button>
       <button class="mtab" data-mtab="montar"><span class="mt-ico">🧩</span>Montar</button>
     </nav>
   </main>
