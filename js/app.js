@@ -870,7 +870,7 @@
   function setTool(tool) {
     state.edit.tool = tool;
     [['brush', 'toolBrush'], ['erase', 'toolErase'],
-     ['fill', 'toolFill'], ['pick', 'toolPick']].forEach(function (t) {
+     ['fill', 'toolFill'], ['pick', 'toolPick'], ['move', 'toolMove']].forEach(function (t) {
       var el = $(t[1]);
       if (el) el.classList.toggle('active', t[0] === tool);
     });
@@ -946,6 +946,25 @@
     }
   }
 
+  /**
+   * Desloca TODO o desenho por (dx,dy) células, sempre a partir de `base` (o
+   * snapshot do início do gesto). Recalcular a partir da base a cada passo torna
+   * o arrasto não-destrutivo: ir e voltar não perde conteúdo. O que sai da
+   * bandeja durante ESTE gesto é recortado (vira vazio); ao soltar e começar
+   * outro arrasto, o recorte se torna definitivo.
+   */
+  function shiftFromBase(base, dx, dy) {
+    var g = state.grid, w = g.w, h = g.h, a = g.assign;
+    for (var y = 0; y < h; y++) {
+      for (var x = 0; x < w; x++) {
+        var sx = x - dx, sy = y - dy;
+        a[y * w + x] = (sx >= 0 && sx < w && sy >= 0 && sy < h) ? base[sy * w + sx] : -1;
+      }
+    }
+    state.edit.dirty = true;
+    commitEdit();
+  }
+
   /** Aplica a ferramenta ativa na célula. */
   function applyTool(cell) {
     var g = state.grid, i = cell.i, tool = state.edit.tool;
@@ -1011,7 +1030,9 @@
    */
   function setupEditPaint() {
     var vp = $('viewport');
-    var painting = false, pid = null, lastCell = -1, count = 0;
+    var active = false, pid = null, lastCell = -1, count = 0;
+    // Estado do arrasto da ferramenta Mão.
+    var moveBase = null, moveStart = null, lastDx = 0, lastDy = 0;
 
     function paintAt(cx, cy) {
       var cell = viewportToCell(cx, cy);
@@ -1021,22 +1042,42 @@
       applyTool(cell);
     }
 
+    function startMove(cx, cy) {
+      moveBase = Int16Array.from(state.grid.assign);
+      moveStart = { x: cx, y: cy };
+      lastDx = 0; lastDy = 0;
+    }
+    function doMove(cx, cy) {
+      if (!moveBase) return;
+      // Converte o deslocamento em pixels da tela para células (snap inteiro).
+      var cell = activeTab === 'color' ? COLOR_CELL : 24;
+      var cs = cell * panzoom.scale;
+      var dx = Math.round((cx - moveStart.x) / cs);
+      var dy = Math.round((cy - moveStart.y) / cs);
+      if (dx === lastDx && dy === lastDy) return; // ainda na mesma célula
+      lastDx = dx; lastDy = dy;
+      if (dx !== 0 || dy !== 0) pushUndoOnce(); // snapshot só quando de fato moveu
+      shiftFromBase(moveBase, dx, dy);
+    }
+
     vp.addEventListener('pointerdown', function (e) {
       count++;
       if (!state.edit.on || !state.grid) return;
-      if (count > 1) { painting = false; pid = null; return; } // 2 dedos = pan/zoom
-      pid = e.pointerId; painting = true; lastCell = -1; editStrokeSnapped = false;
-      paintAt(e.clientX, e.clientY);
+      if (count > 1) { active = false; pid = null; moveBase = null; return; } // 2 dedos = pan/zoom
+      pid = e.pointerId; active = true; lastCell = -1; editStrokeSnapped = false;
+      if (state.edit.tool === 'move') startMove(e.clientX, e.clientY);
+      else paintAt(e.clientX, e.clientY);
       e.preventDefault();
     });
     vp.addEventListener('pointermove', function (e) {
-      if (!painting || e.pointerId !== pid) return;
-      paintAt(e.clientX, e.clientY);
+      if (!active || e.pointerId !== pid) return;
+      if (state.edit.tool === 'move') doMove(e.clientX, e.clientY);
+      else paintAt(e.clientX, e.clientY);
       e.preventDefault();
     });
     function end(e) {
       count = Math.max(0, count - 1);
-      if (e.pointerId === pid) { painting = false; pid = null; }
+      if (e.pointerId === pid) { active = false; pid = null; moveBase = null; }
     }
     vp.addEventListener('pointerup', end);
     vp.addEventListener('pointercancel', end);
@@ -1048,6 +1089,7 @@
     $('toolErase').addEventListener('click', function () { setTool('erase'); });
     $('toolFill').addEventListener('click', function () { setTool('fill'); });
     $('toolPick').addEventListener('click', function () { setTool('pick'); });
+    $('toolMove').addEventListener('click', function () { setTool('move'); });
     $('editUndo').addEventListener('click', doUndo);
     $('editRedo').addEventListener('click', doRedo);
     setupEditPaint();
