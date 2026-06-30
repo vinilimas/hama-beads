@@ -648,6 +648,21 @@
     return null;
   }
 
+  /** Índice (em grid.colors) da cor focada na montagem, ou -1 se "todas". */
+  function focusedColorIndex() {
+    if (!state.asm.focusCode || !state.grid) return -1;
+    return state.grid.colors.findIndex(function (c) { return c.code === state.asm.focusCode; });
+  }
+  /** Próxima linha (direção dir) que contém a cor `fi`; null se não houver. */
+  function nextRowWithColor(from, dir, fi) {
+    if (!state.grid) return null;
+    var a = state.grid.assign;
+    for (var y = from; y >= 0 && y < BOARD; y += dir) {
+      for (var x = 0; x < BOARD; x++) if (a[y * BOARD + x] === fi) return y;
+    }
+    return null;
+  }
+
   function gotoRow(dir) {
     var r = nextBeadRow(state.asm.currentRow + dir, dir);
     if (r == null) return;
@@ -661,16 +676,23 @@
     $('rowLabel').textContent = 'Linha ' + state.asm.currentRow;
   }
 
-  /** Marca toda a linha atual como feita e avança para a próxima com miçanga. */
+  /**
+   * Marca a linha atual como feita e avança para a próxima linha.
+   * Com foco de cor ligado, marca SÓ as miçangas da cor focada (e pula para a
+   * próxima linha que ainda tenha essa cor). Sem foco, marca a linha inteira.
+   */
   function markRowDone() {
     if (!state.grid) return;
     var y = state.asm.currentRow;
     var a = state.grid.assign;
+    var fi = focusedColorIndex();
     for (var x = 0; x < BOARD; x++) {
       var i = y * BOARD + x;
-      if (a[i] >= 0) state.progress[i] = 1;
+      if (a[i] < 0) continue;
+      if (fi >= 0 && a[i] !== fi) continue; // foco: ignora as outras cores
+      state.progress[i] = 1;
     }
-    var r = nextBeadRow(y + 1, 1);
+    var r = fi >= 0 ? nextRowWithColor(y + 1, 1, fi) : nextBeadRow(y + 1, 1);
     if (r != null) state.asm.currentRow = r;
     updateRowLabel();
     saveAsm();

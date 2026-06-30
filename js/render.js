@@ -192,6 +192,22 @@
       ctx.stroke();
     }
 
+    // Destaque da LINHA ATIVA (montagem "linha por linha"). Desenhado por cima das
+    // linhas-guia para ficar SEMPRE visível — inclusive com foco de cor ligado, em
+    // que as células da linha que não são da cor focada ficam escurecidas e, sem
+    // este contorno, a faixa da linha "sumia".
+    if (activeRow != null && activeRow >= 0 && activeRow < h) {
+      const ry = oy + activeRow * cell;
+      ctx.save();
+      ctx.lineWidth = Math.max(2, cell * 0.2);
+      // Halo escuro por baixo + contorno ciano vivo por cima (destaca em qualquer fundo).
+      ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+      ctx.strokeRect(ox + 1, ry + 1, w * cell - 2, cell - 2);
+      ctx.strokeStyle = 'rgba(70,200,255,0.98)';
+      ctx.strokeRect(ox + 1, ry + 1, w * cell - 2, cell - 2);
+      ctx.restore();
+    }
+
     // Círculo de referência da bandeja física (guia gravado na placa real).
     // É só visual: marca a área circular central de `trayDiameter` pinos.
     if (opts.trayDiameter && opts.trayDiameter > 0) {
