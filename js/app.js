@@ -264,19 +264,19 @@
     // Proporção do recorte → dimensões da imagem na bandeja (lado maior = S).
     state.cropAR = cropped.width / cropped.height;
 
-    // Pixel art detectada e cabendo na bandeja: amostra na GRADE NATIVA, dividindo
-    // exatamente a região de conteúdo (sem a moldura) — alinha as células aos
-    // blocos. Caso contrário (foto, ou o usuário mexeu no tamanho): downscale normal.
-    var region = null, wh;
+    // Pixel art detectada e cabendo na bandeja: amostra na GRADE NATIVA (a imagem
+    // INTEIRA dividida em gridW×gridH blocos iguais) — alinha as células aos blocos
+    // sem recortar nada (fundo e bordas ficam; o fundo o usuário remove à mão).
+    // Caso contrário (foto, ou o usuário mexeu no tamanho): downscale normal.
+    var wh;
     var dg = state._detectedGrid;
     if (dg && state._useDetectedGrid) {
       wh = { w: dg.gridW, h: dg.gridH };
-      region = dg.content;
     } else {
       wh = computeWH(p.imageCells, state.cropAR);
     }
     state.imgW = wh.w; state.imgH = wh.h;
-    state.sample = HBPipeline.sampleGrid(cropped, wh.w, wh.h, p.sampleMethod, region);
+    state.sample = HBPipeline.sampleGrid(cropped, wh.w, wh.h, p.sampleMethod);
     remap();
   }
 

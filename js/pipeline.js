@@ -606,54 +606,6 @@
   }
 
   /**
-   * Auto-recorte da moldura uniforme em volta da arte.
-   *
-   * Muitas pixel arts vêm com uma margem/borda de cor sólida (ex.: a imagem do
-   * hacker tem moldura preta). Se a grade for dividida sobre a imagem inteira,
-   * a margem desloca tudo e os blocos saem desalinhados. Aqui detectamos a
-   * moldura (linhas/colunas externas cuja cor bate com a média dos 4 cantos) e
-   * devolvemos o retângulo de CONTEÚDO. A detecção de período e a amostragem
-   * passam a trabalhar só dentro dele.
-   *
-   * Tolerante a ~1% de pixels fora do padrão por linha/coluna (anti-aliasing).
-   *
-   * @returns {{x,y,w,h}} retângulo de conteúdo (imagem inteira se não houver moldura).
-   */
-  function trimUniformBorder(data, W, H) {
-    function at(x, y) { return (y * W + x) * 4; }
-    var c0 = at(0, 0), c1 = at(W - 1, 0), c2 = at(0, H - 1), c3 = at(W - 1, H - 1);
-    var fr = (data[c0] + data[c1] + data[c2] + data[c3]) / 4;
-    var fg = (data[c0 + 1] + data[c1 + 1] + data[c2 + 1] + data[c3 + 1]) / 4;
-    var fb = (data[c0 + 2] + data[c1 + 2] + data[c2 + 2] + data[c3 + 2]) / 4;
-    var fa = (data[c0 + 3] + data[c1 + 3] + data[c2 + 3] + data[c3 + 3]) / 4;
-    var TOL = 28; // soma das diferenças absolutas por canal
-
-    function isFrame(x, y) {
-      var i = at(x, y);
-      if (data[i + 3] <= 16 && fa <= 16) return true; // moldura transparente
-      return Math.abs(data[i] - fr) + Math.abs(data[i + 1] - fg) +
-             Math.abs(data[i + 2] - fb) <= TOL;
-    }
-    function rowIsFrame(y) {
-      var bad = 0, lim = Math.max(1, Math.floor(W * 0.01));
-      for (var x = 0; x < W; x++) if (!isFrame(x, y) && ++bad > lim) return false;
-      return true;
-    }
-    function colIsFrame(x) {
-      var bad = 0, lim = Math.max(1, Math.floor(H * 0.01));
-      for (var y = 0; y < H; y++) if (!isFrame(x, y) && ++bad > lim) return false;
-      return true;
-    }
-
-    var top = 0, bottom = H - 1, left = 0, right = W - 1;
-    while (top < bottom && rowIsFrame(top)) top++;
-    while (bottom > top && rowIsFrame(bottom)) bottom--;
-    while (left < right && colIsFrame(left)) left++;
-    while (right > left && colIsFrame(right)) right--;
-    return { x: left, y: top, w: right - left + 1, h: bottom - top + 1 };
-  }
-
-  /**
    * Período fundamental de um sinal 1D por AUTOCORRELAÇÃO.
    *
    * Mais estável que medir o espaçamento entre picos isolados: a autocorrelação
@@ -735,15 +687,18 @@
    * Detecta a resolução NATIVA de uma pixel art e devolve a grade para reamostrar
    * "sobre a grade verdadeira" (mesmo princípio de ferramentas como spritecook).
    *
+   * IMPORTANTE: trabalha na imagem INTEIRA — NÃO recorta nada. Fundo e bordas são
+   * conteúdo (o fundo o usuário remove manualmente; as bordas pretas dos desenhos
+   * sempre ficam). A grade é a imagem dividida em gridW×gridH blocos iguais.
+   *
    * Etapas:
-   *   1. Auto-recorta a moldura uniforme (trimUniformBorder).
-   *   2. Mede o sinal de transição de cor por coluna/linha DENTRO do conteúdo.
-   *   3. Acha o período (tamanho da célula) por autocorrelação, por eixo.
-   *   4. Verifica por uniformidade de bloco (gate anti-falso-positivo).
+   *   1. Mede o sinal de transição de cor por coluna/linha.
+   *   2. Acha o período (tamanho da célula) por autocorrelação, por eixo.
+   *   3. Verifica por uniformidade de bloco (gate anti-falso-positivo em foto).
    *
    * Deve ser chamada no canvas RAW (antes dos filtros), para bordas nítidas.
    *
-   * @returns {{step,gridW,gridH,content}} ou null se não parecer pixel art.
+   * @returns {{step,gridW,gridH}} ou null se não parecer pixel art.
    */
   function detectPixelArt(canvas) {
     var W = canvas.width, H = canvas.height;
@@ -752,16 +707,11 @@
     var ctx = canvas.getContext('2d', { willReadFrequently: true });
     var data = ctx.getImageData(0, 0, W, H).data;
 
-    // 1) Conteúdo (sem moldura). Se o recorte ficar pequeno demais, usa tudo.
-    var content = trimUniformBorder(data, W, H);
-    if (content.w < 6 || content.h < 6) content = { x: 0, y: 0, w: W, h: H };
-    var cx = content.x, cy = content.y, cw = content.w, ch = content.h;
-
-    // 2) Sinais de transição (índice relativo ao conteúdo).
-    var hT = new Float64Array(cw);
-    for (var y = 0; y < ch; y++) {
-      var rowBase = ((cy + y) * W + cx) * 4;
-      for (var x = 0; x < cw - 1; x++) {
+    // 1) Sinais de transição de cor (imagem inteira).
+    var hT = new Float64Array(W);
+    for (var y = 0; y < H; y++) {
+      var rowBase = (y * W) * 4;
+      for (var x = 0; x < W - 1; x++) {
         var i = rowBase + x * 4;
         var d = Math.abs(data[i] - data[i + 4]) +
                 Math.abs(data[i + 1] - data[i + 5]) +
@@ -769,10 +719,10 @@
         if (d > 30) hT[x]++;
       }
     }
-    var vT = new Float64Array(ch);
-    for (var xx = 0; xx < cw; xx++) {
-      for (var yy = 0; yy < ch - 1; yy++) {
-        var ii = ((cy + yy) * W + cx + xx) * 4;
+    var vT = new Float64Array(H);
+    for (var xx = 0; xx < W; xx++) {
+      for (var yy = 0; yy < H - 1; yy++) {
+        var ii = (yy * W + xx) * 4;
         var jj = ii + W * 4;
         var d2 = Math.abs(data[ii] - data[jj]) +
                  Math.abs(data[ii + 1] - data[jj + 1]) +
@@ -781,27 +731,27 @@
       }
     }
 
-    // 3) Período por eixo. Se um eixo falhar, assume célula quadrada.
-    var hStep = autocorrPeriod(hT, cw);
-    var vStep = autocorrPeriod(vT, ch);
+    // 2) Período por eixo. Se um eixo falhar, assume célula quadrada.
+    var hStep = autocorrPeriod(hT, W);
+    var vStep = autocorrPeriod(vT, H);
     if (!hStep && !vStep) return null;
     if (!hStep) hStep = vStep;
     if (!vStep) vStep = hStep;
     if (hStep < 2 || vStep < 2) return null;
 
-    var gridW = Math.round(cw / hStep);
-    var gridH = Math.round(ch / vStep);
+    var gridW = Math.round(W / hStep);
+    var gridH = Math.round(H / vStep);
     if (gridW < 4 || gridH < 4 || gridW > 200 || gridH > 200) return null;
 
-    // 4) Gate por uniformidade de bloco — evita falso positivo em foto.
-    var score = blockUniformity(data, W, content, gridW, gridH);
+    // 3) Gate por uniformidade de bloco — evita falso positivo em foto.
+    var full = { x: 0, y: 0, w: W, h: H };
+    var score = blockUniformity(data, W, full, gridW, gridH);
     if (score < 0.5) return null;
 
     return {
       step: (hStep + vStep) / 2,
       gridW: gridW,
       gridH: gridH,
-      content: content,
     };
   }
 
