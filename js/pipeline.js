@@ -28,11 +28,12 @@
    * que é rápido e dá boa amostragem.
    * @returns {{w,h, rgb:Float32Array, alpha:Float32Array, lab:Array}}
    */
-  function sampleGrid(srcCanvas, gridW, gridH, method) {
-    if (method === 'dominant') return sampleGridDominant(srcCanvas, gridW, gridH);
+  function sampleGrid(srcCanvas, gridW, gridH, method, region) {
+    if (method === 'dominant') return sampleGridDominant(srcCanvas, gridW, gridH, region);
 
     // Método 'average' (padrão): média de área via downscale do Canvas.
     // Bom para fotos e gradientes, onde a média representa bem a região.
+    const r = region || { x: 0, y: 0, w: srcCanvas.width, h: srcCanvas.height };
     const off = document.createElement('canvas');
     off.width = gridW;
     off.height = gridH;
@@ -40,7 +41,9 @@
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
     ctx.clearRect(0, 0, gridW, gridH);
-    ctx.drawImage(srcCanvas, 0, 0, gridW, gridH);
+    // Desenha apenas a sub-região de conteúdo (region) esticada na grade. Sem
+    // region, usa o canvas inteiro (comportamento padrão para fotos).
+    ctx.drawImage(srcCanvas, r.x, r.y, r.w, r.h, 0, 0, gridW, gridH);
 
     const data = ctx.getImageData(0, 0, gridW, gridH).data;
     const n = gridW * gridH;
@@ -75,10 +78,19 @@
    * agrupar pixels quase iguais; a cor representativa do balde vencedor é a média
    * dos pixels reais dele (fica fiel à cor chapada original).
    */
-  function sampleGridDominant(srcCanvas, gridW, gridH) {
+  function sampleGridDominant(srcCanvas, gridW, gridH, region) {
     const sw = srcCanvas.width, sh = srcCanvas.height;
     const ctx = srcCanvas.getContext('2d', { willReadFrequently: true });
     const data = ctx.getImageData(0, 0, sw, sh).data;
+
+    // Sub-região de conteúdo (após auto-recorte da moldura na detecção). Sem
+    // region, varre o canvas inteiro. Dividir exatamente ESTA região pela grade
+    // nativa (gridW×gridH) faz cada célula cair dentro de um único bloco de pixel
+    // art — é o que alinha a grade aos blocos e elimina cores "sujas" de borda.
+    const rx = region ? region.x : 0;
+    const ry = region ? region.y : 0;
+    const rw = region ? region.w : sw;
+    const rh = region ? region.h : sh;
 
     const n = gridW * gridH;
     const rgb = new Float32Array(n * 3);
@@ -86,11 +98,11 @@
     const lab = new Array(n);
 
     for (let gy = 0; gy < gridH; gy++) {
-      const y0 = Math.floor((gy * sh) / gridH);
-      const y1 = Math.max(y0 + 1, Math.floor(((gy + 1) * sh) / gridH));
+      const y0 = ry + Math.floor((gy * rh) / gridH);
+      const y1 = Math.max(y0 + 1, ry + Math.floor(((gy + 1) * rh) / gridH));
       for (let gx = 0; gx < gridW; gx++) {
-        const x0 = Math.floor((gx * sw) / gridW);
-        const x1 = Math.max(x0 + 1, Math.floor(((gx + 1) * sw) / gridW));
+        const x0 = rx + Math.floor((gx * rw) / gridW);
+        const x1 = Math.max(x0 + 1, rx + Math.floor(((gx + 1) * rw) / gridW));
 
         // Conta os baldes de cor dentro da célula; guarda soma p/ a média do balde.
         const sums = new Map(); // key -> [rSum, gSum, bSum, count]
@@ -223,12 +235,125 @@
     return mask;
   }
 
+  // ---- Quantização global de cor (clusterização em Lab) -------------------
+  // Em vez de casar cada célula isolada com a miçanga mais próxima (que espalha
+  // tons de borda em miçangas diferentes), agrupamos PRIMEIRO as cores da imagem
+  // em poucos clusters perceptuais e só então mapeamos cada cluster para uma
+  // miçanga. Resultado: cores consistentes e limpas (todo "verde" vira a mesma
+  // miçanga). Median-cut dá os clusters iniciais; algumas iterações de k-means
+  // (Lloyd) em Lab refinam. Tudo determinístico — sem aleatório, sem rede.
+
+  /** Centróide Lab de um conjunto de índices. */
+  function centroidLab(lab, idx) {
+    let L = 0, a = 0, b = 0;
+    for (let k = 0; k < idx.length; k++) { const c = lab[idx[k]]; L += c.L; a += c.a; b += c.b; }
+    const n = idx.length || 1;
+    return { L: L / n, a: a / n, b: b / n };
+  }
+
+  /** Caixa (box) do median-cut: índices + extensão em cada eixo Lab. */
+  function makeBox(lab, idx) {
+    let lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+    for (let k = 0; k < idx.length; k++) {
+      const c = lab[idx[k]];
+      if (c.L < lo[0]) lo[0] = c.L; if (c.L > hi[0]) hi[0] = c.L;
+      if (c.a < lo[1]) lo[1] = c.a; if (c.a > hi[1]) hi[1] = c.a;
+      if (c.b < lo[2]) lo[2] = c.b; if (c.b > hi[2]) hi[2] = c.b;
+    }
+    return {
+      idx: idx,
+      spanL: hi[0] - lo[0], spanA: hi[1] - lo[1], spanB: hi[2] - lo[2],
+    };
+  }
+
+  /** Median-cut em Lab: divide recursivamente até K clusters; retorna centróides. */
+  function medianCutLab(lab, idxs, K) {
+    let boxes = [makeBox(lab, idxs)];
+    while (boxes.length < K) {
+      let bi = -1, bestSpan = -1;
+      for (let k = 0; k < boxes.length; k++) {
+        const b = boxes[k];
+        if (b.idx.length < 2) continue;
+        const span = Math.max(b.spanL, b.spanA, b.spanB);
+        if (span > bestSpan) { bestSpan = span; bi = k; }
+      }
+      if (bi < 0) break;
+      const b = boxes[bi];
+      const axis = (b.spanA >= b.spanL && b.spanA >= b.spanB) ? 'a'
+                 : (b.spanB >= b.spanL && b.spanB >= b.spanA) ? 'b' : 'L';
+      const sorted = b.idx.slice().sort((p, q) => lab[p][axis] - lab[q][axis]);
+      const mid = sorted.length >> 1;
+      boxes.splice(bi, 1, makeBox(lab, sorted.slice(0, mid)), makeBox(lab, sorted.slice(mid)));
+    }
+    return boxes.filter((b) => b.idx.length).map((b) => centroidLab(lab, b.idx));
+  }
+
+  /** Cluster Lab mais próximo (distância euclidiana, rápida). */
+  function nearestClusterLab(c, centroids) {
+    let best = 0, bestD = Infinity;
+    for (let k = 0; k < centroids.length; k++) {
+      const d = HBColors.labDist2(c, centroids[k]);
+      if (d < bestD) { bestD = d; best = k; }
+    }
+    return best;
+  }
+
+  /** Refino k-means (Lloyd) dos centróides, `iters` iterações. */
+  function kmeansRefineLab(lab, idxs, centroids, iters) {
+    let cs = centroids.map((c) => ({ L: c.L, a: c.a, b: c.b }));
+    for (let it = 0; it < iters; it++) {
+      const sL = new Float64Array(cs.length), sA = new Float64Array(cs.length),
+            sB = new Float64Array(cs.length), cnt = new Int32Array(cs.length);
+      for (let m = 0; m < idxs.length; m++) {
+        const c = lab[idxs[m]];
+        const k = nearestClusterLab(c, cs);
+        sL[k] += c.L; sA[k] += c.a; sB[k] += c.b; cnt[k]++;
+      }
+      for (let k = 0; k < cs.length; k++) {
+        if (cnt[k] > 0) cs[k] = { L: sL[k] / cnt[k], a: sA[k] / cnt[k], b: sB[k] / cnt[k] };
+      }
+    }
+    return cs;
+  }
+
+  /**
+   * Preenche `assign` mapeando cada célula visível à miçanga via quantização
+   * global (clusters → miçanga). `assign[i]` é índice em `colors` (= activeColors),
+   * o mesmo espaço do caminho "nearest por célula" — então o resto do buildGrid
+   * (limite de cores, fundo) continua valendo.
+   */
+  function quantizeAssign(sample, colors, assign, bgMask, alphaThreshold, maxColors) {
+    const { lab, alpha, w, h } = sample;
+    const n = w * h;
+    const idxs = [];
+    for (let i = 0; i < n; i++) {
+      if (alpha[i] <= alphaThreshold) continue;
+      if (bgMask && bgMask[i]) continue;
+      idxs.push(i);
+    }
+    if (!idxs.length) return;
+
+    // Mais clusters que o limite final dá margem para o simplify/limite escolher.
+    const K = (maxColors && maxColors > 0)
+      ? Math.min(Math.max(maxColors * 2, 8), 24)
+      : 16;
+    let centroids = medianCutLab(lab, idxs, Math.min(K, idxs.length));
+    centroids = kmeansRefineLab(lab, idxs, centroids, 3);
+
+    const clusterBead = centroids.map((c) => nearestColorIndex(c, colors));
+    for (let m = 0; m < idxs.length; m++) {
+      const i = idxs[m];
+      assign[i] = clusterBead[nearestClusterLab(lab[i], centroids)];
+    }
+  }
+
   /**
    * ETAPA B — Monta o grid final.
    * @param sample  resultado de sampleGrid()
    * @param activeColors  cores ativas da paleta (cada uma com .lab)
    * @param opts {
    *   dithering:boolean,
+   *   quantize:boolean,             // quantização global (arte chapada/pixel art)
    *   maxColors:number|0,           // 0 = sem limite
    *   background:'keep'|'empty'|'color',
    *   backgroundTolerance:number,   // Delta-E
@@ -256,6 +381,8 @@
 
     if (opts.dithering) {
       ditherFloydSteinberg(sample, colors, assign, bgMask, alphaThreshold);
+    } else if (opts.quantize) {
+      quantizeAssign(sample, colors, assign, bgMask, alphaThreshold, opts.maxColors);
     } else {
       for (let i = 0; i < n; i++) {
         if (sample.alpha[i] <= alphaThreshold) continue;           // transparente
@@ -479,93 +606,203 @@
   }
 
   /**
-   * Detecta se o canvas é pixel art em escala (blocos de pixels idênticos repetidos).
+   * Auto-recorte da moldura uniforme em volta da arte.
    *
-   * Funcionamento: para cada coluna x, conta em quantas linhas existe uma mudança
-   * de cor entre x e x+1 — isso cria um "sinal de transição". Em pixel art escalonada
-   * (ex.: cada célula = 8px) esse sinal tem picos periódicos nos limites das células.
-   * Encontramos o período dominante (espacamento modal entre picos) e derivamos o
-   * número de células originais.
+   * Muitas pixel arts vêm com uma margem/borda de cor sólida (ex.: a imagem do
+   * hacker tem moldura preta). Se a grade for dividida sobre a imagem inteira,
+   * a margem desloca tudo e os blocos saem desalinhados. Aqui detectamos a
+   * moldura (linhas/colunas externas cuja cor bate com a média dos 4 cantos) e
+   * devolvemos o retângulo de CONTEÚDO. A detecção de período e a amostragem
+   * passam a trabalhar só dentro dele.
    *
-   * Deve ser chamada no canvas RAW, antes de aplicar filtros.
+   * Tolerante a ~1% de pixels fora do padrão por linha/coluna (anti-aliasing).
    *
-   * @returns {{step:number, gridW:number, gridH:number}} ou null se não detectado.
+   * @returns {{x,y,w,h}} retângulo de conteúdo (imagem inteira se não houver moldura).
+   */
+  function trimUniformBorder(data, W, H) {
+    function at(x, y) { return (y * W + x) * 4; }
+    var c0 = at(0, 0), c1 = at(W - 1, 0), c2 = at(0, H - 1), c3 = at(W - 1, H - 1);
+    var fr = (data[c0] + data[c1] + data[c2] + data[c3]) / 4;
+    var fg = (data[c0 + 1] + data[c1 + 1] + data[c2 + 1] + data[c3 + 1]) / 4;
+    var fb = (data[c0 + 2] + data[c1 + 2] + data[c2 + 2] + data[c3 + 2]) / 4;
+    var fa = (data[c0 + 3] + data[c1 + 3] + data[c2 + 3] + data[c3 + 3]) / 4;
+    var TOL = 28; // soma das diferenças absolutas por canal
+
+    function isFrame(x, y) {
+      var i = at(x, y);
+      if (data[i + 3] <= 16 && fa <= 16) return true; // moldura transparente
+      return Math.abs(data[i] - fr) + Math.abs(data[i + 1] - fg) +
+             Math.abs(data[i + 2] - fb) <= TOL;
+    }
+    function rowIsFrame(y) {
+      var bad = 0, lim = Math.max(1, Math.floor(W * 0.01));
+      for (var x = 0; x < W; x++) if (!isFrame(x, y) && ++bad > lim) return false;
+      return true;
+    }
+    function colIsFrame(x) {
+      var bad = 0, lim = Math.max(1, Math.floor(H * 0.01));
+      for (var y = 0; y < H; y++) if (!isFrame(x, y) && ++bad > lim) return false;
+      return true;
+    }
+
+    var top = 0, bottom = H - 1, left = 0, right = W - 1;
+    while (top < bottom && rowIsFrame(top)) top++;
+    while (bottom > top && rowIsFrame(bottom)) bottom--;
+    while (left < right && colIsFrame(left)) left++;
+    while (right > left && colIsFrame(right)) right--;
+    return { x: left, y: top, w: right - left + 1, h: bottom - top + 1 };
+  }
+
+  /**
+   * Período fundamental de um sinal 1D por AUTOCORRELAÇÃO.
+   *
+   * Mais estável que medir o espaçamento entre picos isolados: a autocorrelação
+   * acumula a periodicidade do sinal inteiro. Removemos a média (DC), calculamos
+   * a correlação para cada deslocamento (lag) e pegamos o PRIMEIRO pico forte
+   * (>= 50% do pico global) — que corresponde ao período de uma célula (e não a
+   * um múltiplo dele).
+   *
+   * @returns {number|null} tamanho da célula em pixels, ou null.
+   */
+  function autocorrPeriod(sig, len) {
+    if (len < 6) return null;
+    var mean = 0;
+    for (var i = 0; i < len; i++) mean += sig[i];
+    mean /= len;
+    var a = new Float64Array(len);
+    var norm0 = 0;
+    for (var j = 0; j < len; j++) { a[j] = sig[j] - mean; norm0 += a[j] * a[j]; }
+    if (norm0 <= 1e-9) return null;
+
+    var maxLag = Math.floor(len / 2);
+    var r = new Float64Array(maxLag + 1);
+    for (var lag = 1; lag <= maxLag; lag++) {
+      var s = 0;
+      for (var x = 0; x + lag < len; x++) s += a[x] * a[x + lag];
+      r[lag] = s / norm0;
+    }
+
+    var globalMax = 0;
+    for (var l = 2; l <= maxLag; l++) if (r[l] > globalMax) globalMax = r[l];
+    if (globalMax <= 0) return null;
+
+    var thresh = globalMax * 0.5;
+    for (var p = 2; p < maxLag; p++) {
+      if (r[p] >= thresh && r[p] >= r[p - 1] && r[p] >= r[p + 1]) return p;
+    }
+    return null;
+  }
+
+  /**
+   * Fração de células quase uniformes para a grade candidata (gridW×gridH dentro
+   * de `region`). Pixel art chapada amostrada na grade certa tem células muito
+   * uniformes (desvio baixo); foto/grade errada têm desvio alto. Serve de "gate":
+   * só consideramos pixel art se a fração ficar acima de um limiar.
+   */
+  function blockUniformity(data, W, region, gridW, gridH) {
+    var rx = region.x, ry = region.y, rw = region.w, rh = region.h;
+    var uniform = 0, total = 0;
+    for (var gy = 0; gy < gridH; gy++) {
+      var y0 = ry + Math.floor((gy * rh) / gridH);
+      var y1 = Math.max(y0 + 1, ry + Math.floor(((gy + 1) * rh) / gridH));
+      for (var gx = 0; gx < gridW; gx++) {
+        var x0 = rx + Math.floor((gx * rw) / gridW);
+        var x1 = Math.max(x0 + 1, rx + Math.floor(((gx + 1) * rw) / gridW));
+        var sr = 0, sg = 0, sb = 0, nn = 0;
+        for (var y = y0; y < y1; y++) {
+          var base = (y * W + x0) * 4;
+          for (var x = x0; x < x1; x++, base += 4) {
+            sr += data[base]; sg += data[base + 1]; sb += data[base + 2]; nn++;
+          }
+        }
+        if (!nn) continue;
+        var mr = sr / nn, mg = sg / nn, mb = sb / nn, dev = 0;
+        for (var y2 = y0; y2 < y1; y2++) {
+          var b2 = (y2 * W + x0) * 4;
+          for (var x2 = x0; x2 < x1; x2++, b2 += 4) {
+            dev += Math.abs(data[b2] - mr) + Math.abs(data[b2 + 1] - mg) + Math.abs(data[b2 + 2] - mb);
+          }
+        }
+        dev /= nn;
+        total++;
+        if (dev <= 24) uniform++; // ~8 por canal
+      }
+    }
+    return total ? uniform / total : 0;
+  }
+
+  /**
+   * Detecta a resolução NATIVA de uma pixel art e devolve a grade para reamostrar
+   * "sobre a grade verdadeira" (mesmo princípio de ferramentas como spritecook).
+   *
+   * Etapas:
+   *   1. Auto-recorta a moldura uniforme (trimUniformBorder).
+   *   2. Mede o sinal de transição de cor por coluna/linha DENTRO do conteúdo.
+   *   3. Acha o período (tamanho da célula) por autocorrelação, por eixo.
+   *   4. Verifica por uniformidade de bloco (gate anti-falso-positivo).
+   *
+   * Deve ser chamada no canvas RAW (antes dos filtros), para bordas nítidas.
+   *
+   * @returns {{step,gridW,gridH,content}} ou null se não parecer pixel art.
    */
   function detectPixelArt(canvas) {
-    var w = canvas.width, h = canvas.height;
-    if (w < 6 || h < 6) return null;
+    var W = canvas.width, H = canvas.height;
+    if (W < 6 || H < 6) return null;
 
     var ctx = canvas.getContext('2d', { willReadFrequently: true });
-    var data = ctx.getImageData(0, 0, w, h).data;
+    var data = ctx.getImageData(0, 0, W, H).data;
 
-    // hT[x] = nº de linhas com transição de cor entre a coluna x e x+1.
-    var hT = new Uint32Array(w);
-    for (var y = 0; y < h; y++) {
-      for (var x = 0; x < w - 1; x++) {
-        var i = (y * w + x) * 4;
+    // 1) Conteúdo (sem moldura). Se o recorte ficar pequeno demais, usa tudo.
+    var content = trimUniformBorder(data, W, H);
+    if (content.w < 6 || content.h < 6) content = { x: 0, y: 0, w: W, h: H };
+    var cx = content.x, cy = content.y, cw = content.w, ch = content.h;
+
+    // 2) Sinais de transição (índice relativo ao conteúdo).
+    var hT = new Float64Array(cw);
+    for (var y = 0; y < ch; y++) {
+      var rowBase = ((cy + y) * W + cx) * 4;
+      for (var x = 0; x < cw - 1; x++) {
+        var i = rowBase + x * 4;
         var d = Math.abs(data[i] - data[i + 4]) +
                 Math.abs(data[i + 1] - data[i + 5]) +
                 Math.abs(data[i + 2] - data[i + 6]);
         if (d > 30) hT[x]++;
       }
     }
-
-    // vT[y] = nº de colunas com transição entre a linha y e y+1.
-    var vT = new Uint32Array(h);
-    for (var x2 = 0; x2 < w; x2++) {
-      for (var y2 = 0; y2 < h - 1; y2++) {
-        var ii = (y2 * w + x2) * 4;
-        var jj = ii + w * 4;
+    var vT = new Float64Array(ch);
+    for (var xx = 0; xx < cw; xx++) {
+      for (var yy = 0; yy < ch - 1; yy++) {
+        var ii = ((cy + yy) * W + cx + xx) * 4;
+        var jj = ii + W * 4;
         var d2 = Math.abs(data[ii] - data[jj]) +
                  Math.abs(data[ii + 1] - data[jj + 1]) +
                  Math.abs(data[ii + 2] - data[jj + 2]);
-        if (d2 > 30) vT[y2]++;
+        if (d2 > 30) vT[yy]++;
       }
     }
 
-    // Encontra o período dominante: modo dos espaçamentos entre picos do sinal.
-    function dominantPeriod(sig, len) {
-      var maxVal = 0;
-      for (var k = 0; k < len; k++) if (sig[k] > maxVal) maxVal = sig[k];
-      if (!maxVal) return null;
-      var thresh = maxVal * 0.35;
-
-      var peaks = [];
-      for (var k2 = 1; k2 < len - 1; k2++) {
-        if (sig[k2] >= thresh && sig[k2] >= sig[k2 - 1] && sig[k2] >= sig[k2 + 1]) {
-          peaks.push(k2);
-        }
-      }
-      if (peaks.length < 2) return null;
-
-      var cnt = {};
-      for (var p = 1; p < peaks.length; p++) {
-        var sp = peaks[p] - peaks[p - 1];
-        if (sp < 2) continue;
-        cnt[sp] = (cnt[sp] || 0) + 1;
-      }
-
-      var best = null, bestC = 0;
-      for (var s in cnt) {
-        if (cnt[s] > bestC || (cnt[s] === bestC && +s < best)) {
-          bestC = cnt[s]; best = +s;
-        }
-      }
-      return (best && bestC >= 2) ? best : null;
-    }
-
-    var hStep = dominantPeriod(hT, w);
-    var vStep = dominantPeriod(vT, h);
+    // 3) Período por eixo. Se um eixo falhar, assume célula quadrada.
+    var hStep = autocorrPeriod(hT, cw);
+    var vStep = autocorrPeriod(vT, ch);
     if (!hStep && !vStep) return null;
+    if (!hStep) hStep = vStep;
+    if (!vStep) vStep = hStep;
+    if (hStep < 2 || vStep < 2) return null;
 
-    var step = (hStep && vStep) ? Math.round((hStep + vStep) / 2) : (hStep || vStep);
-    if (step < 2) return null;
-
-    var gridW = Math.round(w / step);
-    var gridH = Math.round(h / step);
+    var gridW = Math.round(cw / hStep);
+    var gridH = Math.round(ch / vStep);
     if (gridW < 4 || gridH < 4 || gridW > 200 || gridH > 200) return null;
 
-    return { step: step, gridW: gridW, gridH: gridH };
+    // 4) Gate por uniformidade de bloco — evita falso positivo em foto.
+    var score = blockUniformity(data, W, content, gridW, gridH);
+    if (score < 0.5) return null;
+
+    return {
+      step: (hStep + vStep) / 2,
+      gridW: gridW,
+      gridH: gridH,
+      content: content,
+    };
   }
 
   /**

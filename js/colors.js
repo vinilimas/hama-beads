@@ -173,10 +173,26 @@
     );
   }
 
+  /**
+   * Distância euclidiana ao quadrado entre dois pontos Lab.
+   * Usada no agrupamento interno (k-means/median-cut), onde precisamos de uma
+   * métrica rápida e estável — não da fidelidade perceptual fina do Delta-E
+   * 2000. O casamento FINAL com a paleta de miçangas continua usando
+   * deltaE2000 (perceptualmente correto). Como é só comparação relativa, o
+   * quadrado evita a raiz e é suficiente.
+   */
+  function labDist2(lab1, lab2) {
+    const dL = lab1.L - lab2.L;
+    const da = lab1.a - lab2.a;
+    const db = lab1.b - lab2.b;
+    return dL * dL + da * da + db * db;
+  }
+
   global.HBColors = {
     hexToRgb,
     rgbToHex,
     rgbToLab,
     deltaE2000,
+    labDist2,
   };
 })(window);

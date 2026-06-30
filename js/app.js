@@ -229,6 +229,10 @@
       state._pendingAutoDetect = false;
       var detected = HBPipeline.detectPixelArt(cropped);
       state._detectedGrid = detected || null;
+      // Usa a grade nativa (1 célula = 1 bloco) só se ela couber na bandeja.
+      // Acima disso não há mapeamento 1:1; caímos no downscale normal.
+      state._useDetectedGrid = !!(detected &&
+        detected.gridW <= IMG_MAX && detected.gridH <= IMG_MAX);
       if (detected) {
         var natMax = Math.max(detected.gridW, detected.gridH);
         setImageCells(Math.min(natMax, IMG_MAX), false);
@@ -259,9 +263,20 @@
 
     // Proporção do recorte → dimensões da imagem na bandeja (lado maior = S).
     state.cropAR = cropped.width / cropped.height;
-    var wh = computeWH(p.imageCells, state.cropAR);
+
+    // Pixel art detectada e cabendo na bandeja: amostra na GRADE NATIVA, dividindo
+    // exatamente a região de conteúdo (sem a moldura) — alinha as células aos
+    // blocos. Caso contrário (foto, ou o usuário mexeu no tamanho): downscale normal.
+    var region = null, wh;
+    var dg = state._detectedGrid;
+    if (dg && state._useDetectedGrid) {
+      wh = { w: dg.gridW, h: dg.gridH };
+      region = dg.content;
+    } else {
+      wh = computeWH(p.imageCells, state.cropAR);
+    }
     state.imgW = wh.w; state.imgH = wh.h;
-    state.sample = HBPipeline.sampleGrid(cropped, wh.w, wh.h, p.sampleMethod);
+    state.sample = HBPipeline.sampleGrid(cropped, wh.w, wh.h, p.sampleMethod, region);
     remap();
   }
 
@@ -288,6 +303,10 @@
 
     var grid = HBPipeline.buildGrid(state.sample, active, {
       dithering: p.dithering,
+      // Arte chapada / pixel art (modo "dominant"): quantização global de cor
+      // (clusters → miçanga) em vez de casar cada célula isolada. Cores limpas
+      // e consistentes. O dithering (modo foto) tem caminho próprio.
+      quantize: p.sampleMethod === 'dominant' && !p.dithering,
       maxColors: p.maxColors,
       background: p.bgMode,
       backgroundTolerance: p.bgTol,
@@ -535,8 +554,8 @@
     if (sw) sw.style.background = state.params.previewBg;
   }
   function setPreviewBg(color) {
+    // Só estado de sessão (não persistido) — começa no padrão a cada visita.
     state.params.previewBg = color;
-    try { localStorage.setItem('hama-preview-bg', color); } catch (e) {}
     updateBgToggle();
     if (state.grid) renderAll();
   }
@@ -829,18 +848,10 @@
       return p;
     } catch (e) { return null; }
   }
-  var saveAsm = debounce(function () {
-    try {
-      localStorage.setItem('hama-assembly-v1', JSON.stringify({
-        progress: encodeProgress(),
-        viewMode: state.asm.viewMode,
-        focusCode: state.asm.focusCode,
-        on: state.asm.on,
-        currentRow: state.asm.currentRow,
-      }));
-    } catch (e) {}
-  }, 250);
-  function saveProgress() { saveAsm(); }
+  // Sessão nova a cada visita: o progresso de montagem vive só em memória
+  // (state.progress / state.asm) durante a sessão e NÃO é persistido.
+  function saveAsm() { /* sem persistência — ver decisão de sessão no init() */ }
+  function saveProgress() { /* idem */ }
 
   function loadAsm() {
     try {
@@ -1128,22 +1139,9 @@
   // Salva o assign + as cores como base64; restaura no reload. De quebra,
   // recupera a grade ao reabrir o app (antes o progresso era salvo, mas a
   // grade sumia).
-  var saveEditGrid = debounce(function () {
-    try {
-      if (!state.grid) { localStorage.removeItem('hama-edit-v1'); return; }
-      var g = state.grid;
-      var i16 = g.assign instanceof Int16Array ? g.assign : Int16Array.from(g.assign);
-      var u8 = new Uint8Array(i16.buffer, i16.byteOffset, i16.byteLength);
-      var bin = '';
-      for (var k = 0; k < u8.length; k++) bin += String.fromCharCode(u8[k]);
-      localStorage.setItem('hama-edit-v1', JSON.stringify({
-        w: g.w, h: g.h,
-        colors: g.colors.map(function (c) { return { code: c.code, name: c.name || '', hex: c.hex }; }),
-        assign: btoa(bin),
-        imgW: state.imgW, imgH: state.imgH,
-      }));
-    } catch (e) { /* localStorage indisponível — ignora */ }
-  }, 300);
+  // Sessão nova a cada visita: a grade convertida/editada NÃO é mais persistida
+  // (antes ia para 'hama-edit-v1'). Fica só em state.grid durante a sessão.
+  function saveEditGrid() { /* sem persistência — ver decisão de sessão no init() */ }
 
   function loadEditGrid() {
     try {
@@ -1328,6 +1326,7 @@
     // Ajustes (resample)
     bindRange('gridSize', 'gridOut', function (v) {
       state._pendingAutoDetect = false; // usuário assumiu controle manual
+      state._useDetectedGrid = false;   // tamanho manual desliga a grade nativa
       state.params.imageCells = v;
       var wh = computeWH(v, state.cropAR);
       state.imgW = wh.w; state.imgH = wh.h;
@@ -1496,6 +1495,7 @@
     handle.addEventListener('pointermove', function (ev) {
       if (!dragging) return;
       state._pendingAutoDetect = false; // usuário assumiu controle manual
+      state._useDetectedGrid = false;   // tamanho manual desliga a grade nativa
       var changed = setImageCells(pointerToS(ev), false);
       if (changed) {
         updateSizer();         // reposiciona a alça para o novo tamanho
@@ -1655,9 +1655,11 @@
     panzoom = new PanZoom($('viewport'), $('canvasPan'));
     panzoom.onUpdate = updateSizer; // reposiciona a alça ao dar zoom/pan
 
-    // Progresso de montagem (bandeja fixa 52×52) + estado salvo.
+    // Progresso de montagem (bandeja fixa 52×52). Sessão nova a cada visita:
+    // NÃO restauramos grade/progresso/preview salvos — só a paleta do kit
+    // sobrevive entre visitas (ver palette.js). Isso mantém o app leve e sem
+    // "estado fantasma" de moldes antigos ao reabrir.
     state.progress = new Uint8Array(BOARD * BOARD);
-    loadAsm();
     applyAsmUI();
 
     buildPaletteEditor();
@@ -1665,18 +1667,7 @@
     renderReplacements();
     bindControls();
     initMobileTabs();
-    loadPreviewBg();
-
-    // Restaura a última grade (convertida/editada) salva — não perde o trabalho
-    // ao recarregar. O molde é autocontido (não precisa da imagem para renderizar,
-    // editar, montar ou exportar; só a reconversão precisaria da foto de novo).
-    var restored = loadEditGrid();
-    if (restored) {
-      state.grid = restored;
-      state._fitted = false;
-      updateFocusOptions();
-      renderAll();
-    }
+    updateBgToggle();
 
     // Reflete valores iniciais nos outputs.
     $('maxColorsOut').textContent = 'sem limite';
