@@ -116,22 +116,35 @@
     const activeRow = opts.activeRow;
     const progress = opts.progress;
     if (focusIndex != null || activeRow != null || progress) {
+      const rowsMode = activeRow != null;
       ctx.textAlign = 'left';
       ctx.textBaseline = 'top';
       for (let y = 0; y < h; y++) {
-        const rowMuted = activeRow != null && y !== activeRow;
         for (let x = 0; x < w; x++) {
           const i = y * w + x;
           const a = assign[i];
           const px = ox + x * cell;
           const py = oy + y * cell;
 
-          // Esmaece o que não é o foco (cor focada / linha atual).
-          let muted = rowMuted;
-          if (focusIndex != null && a !== focusIndex) muted = true;
+          // Esmaecimento:
+          //  - "Linha por linha" (rowsMode): SÓ a linha ativa fica acesa; as demais
+          //    escurecem — INDEPENDENTE de ter uma cor focada. Assim o foco de linha
+          //    funciona tanto com "todas as cores" quanto com uma cor só.
+          //  - "Desenho todo": se há cor focada, escurece tudo menos essa cor.
+          const muted = rowsMode ? (y !== activeRow)
+                                 : (focusIndex != null && a !== focusIndex);
           if (muted) {
             ctx.fillStyle = 'rgba(18,18,24,0.72)';
             ctx.fillRect(px, py, cell, cell);
+          }
+
+          // Anel na cor focada DENTRO da linha ativa: destaca quais miçangas da
+          // linha são da cor escolhida, sem apagar o foco de linha.
+          if (rowsMode && focusIndex != null && a === focusIndex && a >= 0 && y === activeRow) {
+            const lw = Math.max(1.5, cell * 0.16);
+            ctx.lineWidth = lw;
+            ctx.strokeStyle = 'rgba(255,206,40,0.98)';
+            ctx.strokeRect(px + lw / 2, py + lw / 2, cell - lw, cell - lw);
           }
 
           // Marca células já colocadas (check) sobre um leve escurecido.
