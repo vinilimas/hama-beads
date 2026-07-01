@@ -78,14 +78,11 @@
    * agrupar pixels quase iguais; a cor representativa do balde vencedor é a média
    * dos pixels reais dele (fica fiel à cor chapada original).
    *
-   * EXCEÇÃO — traço/contorno fino: quando a imagem de origem é bem maior que a
-   * grade (linhas de contorno com 1-2px na imagem original viram uma fração
-   * pequena de cada célula), o voto puro da maioria APAGA o contorno, porque ele
-   * quase nunca é a cor mais comum na célula. Isso é o problema real relatado
-   * pelo usuário ("as bordas pretas estão sendo apagadas"). Para corrigir, se
-   * houver um balde bem mais ESCURO que o vencedor E com presença mínima na
-   * célula (não é ruído/anti-aliasing isolado), ele vence — contornos em arte
-   * plana/ícones quase sempre são a cor mais escura da região.
+   * (Uma tentativa anterior de favorecer o balde mais escuro em caso de contorno
+   * fino foi revertida: ela engordava o contorno em TODA célula de borda —
+   * mesmo em arte com contorno grosso/comum — e chegava a apagar por completo
+   * preenchimentos finos (ex.: o branco do olho entre a pupila e o contorno).
+   * Voto de maioria puro é mais previsível; ver [[board-and-color-rules]].)
    */
   function sampleGridDominant(srcCanvas, gridW, gridH, region) {
     const sw = srcCanvas.width, sh = srcCanvas.height;
@@ -128,26 +125,6 @@
             if (!s) { s = [0, 0, 0, 0]; sums.set(key, s); }
             s[0] += r; s[1] += g; s[2] += b; s[3]++;
             if (s[3] > bestCount) { bestCount = s[3]; bestKey = key; }
-          }
-        }
-
-        // Contorno fino: procura o balde mais ESCURO com presença mínima (>= 12%
-        // da célula, e ao menos 2 pixels — ignora ruído de 1px de anti-aliasing).
-        // Se ele for bem mais escuro que o vencedor por contagem, ele assume —
-        // um traço de contorno raramente é a cor mais comum da célula, mas é a
-        // cor que o usuário espera ver preservada.
-        if (bestKey >= 0 && aN > 0) {
-          const minCount = Math.max(2, Math.round(aN * 0.12));
-          let darkKey = -1, darkLum = Infinity;
-          for (const [key, s] of sums) {
-            if (s[3] < minCount) continue;
-            const lum = 0.2126 * (s[0] / s[3]) + 0.7152 * (s[1] / s[3]) + 0.0722 * (s[2] / s[3]);
-            if (lum < darkLum) { darkLum = lum; darkKey = key; }
-          }
-          if (darkKey >= 0 && darkKey !== bestKey) {
-            const bs = sums.get(bestKey);
-            const bestLum = 0.2126 * (bs[0] / bs[3]) + 0.7152 * (bs[1] / bs[3]) + 0.0722 * (bs[2] / bs[3]);
-            if (bestLum - darkLum >= 30) bestKey = darkKey;
           }
         }
 
